@@ -1,0 +1,83 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  backend:
+    build:
+      context: ./backend
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      NODE_ENV: ${NODE_ENV}
+      PORT: ${PORT}
+      DATABASE_URL: ${DATABASE_URL}
+      JWT_SECRET: ${JWT_SECRET}
+      JWT_EXPIRES_IN: ${JWT_EXPIRES_IN}
+      ADMIN_USERNAME: ${ADMIN_USERNAME}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD}
+      STORAGE_ROOT: ${STORAGE_ROOT}
+      RECORD_RETENTION_HOURS: ${RECORD_RETENTION_HOURS}
+      RECORD_SEGMENT_SECONDS: ${RECORD_SEGMENT_SECONDS}
+      HLS_SEGMENT_SECONDS: ${HLS_SEGMENT_SECONDS}
+      HLS_LIST_SIZE: ${HLS_LIST_SIZE}
+      RECORD_TIMEZONE: ${RECORD_TIMEZONE}
+    volumes:
+      - ./storage:/storage
+
+  # Đọc sub-stream NVR (nếu cấu hình) để nhận dạng người/xe; không can thiệp main-stream recording.
+  ai:
+    build:
+      context: ./ai
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+      nginx:
+        condition: service_started
+    environment:
+      DATABASE_URL: ${DATABASE_URL}
+      STORAGE_ROOT: /storage
+      AI_HLS_BASE_URL: ${AI_HLS_BASE_URL}
+      AI_MODEL: ${AI_MODEL}
+      AI_DEVICE: ${AI_DEVICE}
+      AI_SYNC_SECONDS: ${AI_SYNC_SECONDS}
+      AI_EVENT_COOLDOWN_SECONDS: ${AI_EVENT_COOLDOWN_SECONDS}
+    volumes:
+      - ./storage:/storage
+      - ./models:/models
+
+  web:
+    build:
+      context: ./web
+      args:
+        VITE_API_BASE: ${VITE_API_BASE}
+    restart: unless-stopped
+
+  nginx:
+    image: nginx:1.27-alpine
+    restart: unless-stopped
+    depends_on:
+      - backend
+      - web
+    ports:
+      - "${HTTP_PORT:-8080}:80"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/conf.d/default.conf:ro
+      - ./storage:/storage:ro
+
+volumes:
+  pgdata:
