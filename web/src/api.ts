@@ -28,6 +28,29 @@ export interface DetectionEvent {
   metadata: { box?: number[]; ai_fps?: number };
 }
 
+export interface OnvifProfile {
+  token: string;
+  name: string;
+  stream_uri: string;
+  codec: string | null;
+  width: number | null;
+  height: number | null;
+  fps: number | null;
+  bitrate: number | null;
+}
+
+export interface OnvifProbeResult {
+  device: {
+    manufacturer: string | null;
+    model: string | null;
+    firmware_version: string | null;
+    serial_number: string | null;
+  };
+  profiles: OnvifProfile[];
+  suggested_main_uri: string;
+  suggested_sub_uri: string | null;
+}
+
 function authHeaders(): Record<string, string> {
   const token = localStorage.getItem('token');
   return token ? { Authorization: `Bearer ${token}` } : {};
@@ -83,6 +106,15 @@ export const api = {
       body: JSON.stringify(data),
     });
     return handle<Camera>(res);
+  },
+
+  async probeOnvif(data: { url: string; username: string; password: string }) {
+    const res = await fetch(`${API_BASE}/cameras/onvif/probe`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', ...authHeaders() },
+      body: JSON.stringify(data),
+    });
+    return handle<OnvifProbeResult>(res);
   },
 
   async deleteCamera(id: number) {

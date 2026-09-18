@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { api, Camera } from '../api';
+import { api, Camera, OnvifProbeResult } from '../api';
 
 type CameraForm = {
   name: string;
@@ -13,6 +13,9 @@ type CameraForm = {
   ai_fps: number;
   ai_confidence: number;
   ai_labels: string;
+  onvif_url: string;
+  onvif_username: string;
+  onvif_password: string;
 };
 
 function emptyForm(): CameraForm {
@@ -20,6 +23,7 @@ function emptyForm(): CameraForm {
     name: '', rtsp_url: '', record: true, enabled: true, codec: 'auto',
     ai_enabled: false, ai_rtsp_url: '', ai_fps: 2, ai_confidence: 0.5,
     ai_labels: 'person, car, motorcycle',
+    onvif_url: '', onvif_username: '', onvif_password: '',
   };
 }
 
@@ -29,6 +33,8 @@ export default function Cameras() {
   const [showForm, setShowForm] = useState(false);
   const [editing, setEditing] = useState<Camera | null>(null);
   const [form, setForm] = useState<CameraForm>(emptyForm());
+  const [onvifResult, setOnvifResult] = useState<OnvifProbeResult | null>(null);
+  const [probingOnvif, setProbingOnvif] = useState(false);
 
   async function load() {
     try {
@@ -47,6 +53,7 @@ export default function Cameras() {
   function openAdd() {
     setEditing(null);
     setForm(emptyForm());
+    setOnvifResult(null);
     setShowForm(true);
   }
 
@@ -63,15 +70,52 @@ export default function Cameras() {
       ai_fps: c.ai_fps ?? 2,
       ai_confidence: c.ai_confidence ?? 0.5,
       ai_labels: c.ai_labels?.join(', ') ?? 'person, car, motorcycle',
+      onvif_url: '', onvif_username: '', onvif_password: '',
     });
+    setOnvifResult(null);
     setShowForm(true);
+  }
+
+  async function probeOnvif() {
+    try {
+      setErr('');
+      setProbingOnvif(true);
+      const result = await api.probeOnvif({
+        url: form.onvif_url,
+        username: form.onvif_username,
+        password: form.onvif_password,
+      });
+      const main = addRtspCredentials(result.suggested_main_uri, form.onvif_username, form.onvif_password);
+      const sub = result.suggested_sub_uri
+        ? addRtspCredentials(result.suggested_sub_uri, form.onvif_username, form.onvif_password)
+        : '';
+      setOnvifResult(result);
+      setForm({
+        ...form,
+        rtsp_url: main,
+        ai_rtsp_url: sub || form.ai_rtsp_url,
+        codec: result.profiles[0]?.codec === 'h265' ? 'h265' : 'auto',
+      });
+    } catch (e: any) {
+      setErr(e.message);
+    } finally {
+      setProbingOnvif(false);
+    }
   }
 
   async function save(e: React.FormEvent) {
     e.preventDefault();
     try {
       const data = {
-        ...form,
+        name: form.name,
+        rtsp_url: form.rtsp_url,
+        record: form.record,
+        enabled: form.enabled,
+        codec: form.codec,
+        ai_enabled: form.ai_enabled,
+        ai_rtsp_url: form.ai_rtsp_url,
+        ai_fps: form.ai_fps,
+        ai_confidence: form.ai_confidence,
         ai_labels: form.ai_labels.split(',').map((label) => label.trim()).filter(Boolean),
       };
       if (editing) {
@@ -149,6 +193,29 @@ export default function Cameras() {
                 placeholder="rtsp://user:pass@ip:554/..."
                 style={input}
               />
+              <fieldset style={{ marginTop: 4, border: '1px solid #d1d5db', borderRadius: 6 }}>
+                <legend style={{ color: '#374151' }}>Dò ONVIF (tùy chọn)</legend>
+                <label>ONVIF device service URL</label>
+                <input
+                  value={form.onvif_url}
+                  onChange={(e) => setForm({ ...form, onvif_url: e.target.value })}
+                  placeholder="http://192.168.0.104/onvif/device_service"
+                  style={input}
+                />
+                <label>Tài khoản ONVIF</label>
+                <input value={form.onvif_username} onChange={(e) => setForm({ ...form, onvif_username: e.target.value })} style={input} />
+                <label>Mật khẩu ONVIF</label>
+                <input type="password" value={form.onvif_password} onChange={(e) => setForm({ ...form, onvif_password: e.target.value })} style={input} />
+                <button type="button" onClick={probeOnvif} disabled={probingOnvif} style={smallBtn}>
+                  {probingOnvif ? 'Đang dò...' : 'Dò profile ONVIF'}
+                </button>
+                <p style={{ fontSize: 12, color: '#6b7280', margin: '8px 0 0' }}>
+                  Kết quả tự điền main/sub RTSP. Tài khoản ONVIF chỉ dùng cho lần dò này, không lưu riêng trong database.
+                </p>
+                {onvifResult && <p style={{ fontSize: 12, color: '#166534', margin: '8px 0 0' }}>
+                  Đã dò {onvifResult.profiles.length} profile{onvifResult.device.model ? ` · ${onvifResult.device.model}` : ''}.
+                </p>}
+              </fieldset>
               <label>Codec</label>
               <select
                 value={form.codec}
@@ -227,3 +294,10 @@ const smallBtn: React.CSSProperties = { padding: '4px 10px', marginRight: 6, bor
 const dangerBtn: React.CSSProperties = { ...smallBtn, color: '#dc2626', borderColor: '#dc2626' };
 const overlay: React.CSSProperties = { position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center' };
 const modal: React.CSSProperties = { background: '#fff', padding: 24, borderRadius: 10, width: 420, maxWidth: '90%' };
+
+function addRtspCredentials(uri: string, username: string, password: string): string {
+  const url = new URL(uri);
+  url.username = username;
+  url.password = password;
+  return url.toString();
+}

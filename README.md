@@ -230,6 +230,7 @@ Nginx phân phối HLS/recording/snapshot để player chạy được, nên hã
    ```
 
 4. Mở web → **Cameras** → **Add Camera**:
+   - Nếu camera bật ONVIF: nhập URL device service (ví dụ `http://<ip-camera>/onvif/device_service`) cùng tài khoản ONVIF, bấm **Dò profile ONVIF** để tự điền main/sub-stream. Credential ONVIF không được lưu riêng; RTSP đã chọn vẫn là cấu hình stream của camera.
    - `RTSP URL`: main-stream.
    - `Recording`: bật.
    - `Codec`: `Auto` trước; chỉ chọn H.264/H.265 khi đã biết codec.
@@ -292,6 +293,7 @@ Backup `storage/` bằng công cụ backup filesystem/NAS theo lịch; không d�
 - `POST /api/auth/login`
 - `GET/POST /api/cameras`, `GET/PUT/DELETE /api/cameras/:id`
 - `POST /api/cameras/:id/start|stop`
+- `POST /api/cameras/onvif/probe` — dò thông tin thiết bị, profile và RTSP URI qua ONVIF
 - `GET /api/recordings/:cameraId/days`
 - `GET /api/recordings/:cameraId/:day`
 - `GET /api/events?cameraId=&from=&to=&label=&limit=`

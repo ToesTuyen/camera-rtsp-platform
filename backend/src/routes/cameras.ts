@@ -2,9 +2,24 @@ import { Router } from 'express';
 import { pool } from '../db';
 import { requireAuth } from '../middleware/auth';
 import { streamManager, CameraRow } from '../stream/manager';
+import { probeOnvif, safeOnvifError, validateOnvifInput } from '../onvif';
 
 const router = Router();
 router.use(requireAuth);
+
+// Dò ONVIF Profile S/T để web tự điền main/sub-stream. Không lưu credential ONVIF.
+router.post('/onvif/probe', async (req, res) => {
+  const input = validateOnvifInput(req.body);
+  if (!input) {
+    res.status(400).json({ error: 'url, username and password are required; URL must be http(s)' });
+    return;
+  }
+  try {
+    res.json(await probeOnvif(input));
+  } catch (error) {
+    res.status(422).json({ error: `Không thể dò ONVIF: ${safeOnvifError(error, input.password)}` });
+  }
+});
 
 // Danh sách camera
 router.get('/', async (_req, res) => {
