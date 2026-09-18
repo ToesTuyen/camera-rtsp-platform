@@ -3,15 +3,30 @@ import fs from 'fs';
 import path from 'path';
 import { config } from '../config';
 import { requireAuth } from '../middleware/auth';
+import { getStorageStatus } from '../stream/retention';
 
 const router = Router();
 router.use(requireAuth);
+
+/** Thông tin filesystem của volume storage và chính sách auto-cleanup. */
+router.get('/storage', (_req, res) => {
+  try {
+    res.json(getStorageStatus());
+  } catch (err) {
+    console.error('[recordings] cannot read storage status:', err);
+    res.status(500).json({ error: 'Không đọc được dung lượng storage' });
+  }
+});
 
 /**
  * Liệt kê các ngày có recording của 1 camera.
  * GET /api/recordings/:cameraId/days -> ["20260911", ...]
  */
 router.get('/:cameraId/days', (req, res) => {
+  if (!isCameraId(req.params.cameraId)) {
+    res.status(400).json({ error: 'cameraId không hợp lệ' });
+    return;
+  }
   const camDir = path.join(config.storageRoot, 'rec', String(req.params.cameraId));
   if (!fs.existsSync(camDir)) {
     res.json([]);
@@ -31,6 +46,10 @@ router.get('/:cameraId/days', (req, res) => {
  */
 router.get('/:cameraId/:day', (req, res) => {
   const { cameraId, day } = req.params;
+  if (!isCameraId(cameraId) || !isDay(day)) {
+    res.status(400).json({ error: 'Camera hoặc ngày không hợp lệ' });
+    return;
+  }
   const dayDir = path.join(config.storageRoot, 'rec', String(cameraId), String(day));
   if (!fs.existsSync(dayDir)) {
     res.json({ playlist: null, segments: [] });
@@ -47,6 +66,7 @@ router.get('/:cameraId/:day', (req, res) => {
         url: `/rec/${cameraId}/${day}/${f}`,
         size: st.size,
         mtime: st.mtime,
+        started_at: startedAtFromFilename(f),
       };
     });
   const hasPlaylist = files.includes('index.m3u8');
@@ -55,5 +75,57 @@ router.get('/:cameraId/:day', (req, res) => {
     segments,
   });
 });
+
+/**
+ * Trả playlist playback bắt đầu từ một segment đã chọn. Playlist kết thúc tại
+ * segment mới nhất hiện có để user xem lại ổn định trong khi FFmpeg vẫn ghi.
+ */
+router.get('/:cameraId/:day/playlist', (req, res) => {
+  const { cameraId, day } = req.params;
+  if (!isCameraId(cameraId) || !isDay(day)) {
+    res.status(400).json({ error: 'Camera hoặc ngày không hợp lệ' });
+    return;
+  }
+  const dayDir = path.join(config.storageRoot, 'rec', cameraId, day);
+  const from = typeof req.query.from === 'string' ? path.basename(req.query.from) : '';
+  if (!fs.existsSync(dayDir)) {
+    res.status(404).json({ error: 'Không có recording cho ngày đã chọn' });
+    return;
+  }
+  const segments = fs.readdirSync(dayDir).filter((file) => file.endsWith('.ts')).sort();
+  const startIndex = from ? segments.indexOf(from) : 0;
+  if (from && startIndex < 0) {
+    res.status(400).json({ error: 'Segment bắt đầu không hợp lệ' });
+    return;
+  }
+  const selected = segments.slice(Math.max(0, startIndex));
+  const playlist = [
+    '#EXTM3U',
+    '#EXT-X-VERSION:3',
+    `#EXT-X-TARGETDURATION:${Math.max(1, Math.ceil(config.recordSegmentSeconds))}`,
+    ...selected.flatMap((file) => [
+      `#EXTINF:${config.recordSegmentSeconds.toFixed(3)},`,
+      `/rec/${cameraId}/${day}/${encodeURIComponent(file)}`,
+    ]),
+    '#EXT-X-ENDLIST',
+    '',
+  ].join('\n');
+  res.type('application/vnd.apple.mpegurl').send(playlist);
+});
+
+function isCameraId(value: string): boolean {
+  return /^\d+$/.test(value);
+}
+
+function isDay(value: string): boolean {
+  return /^\d{8}$/.test(value);
+}
+
+function startedAtFromFilename(file: string): string | null {
+  const match = /^rec_(\d{8})_(\d{6})\.ts$/.exec(file);
+  if (!match) return null;
+  const [, day, time] = match;
+  return `${day.slice(0, 4)}-${day.slice(4, 6)}-${day.slice(6, 8)}T${time.slice(0, 2)}:${time.slice(2, 4)}:${time.slice(4, 6)}`;
+}
 
 export default router;

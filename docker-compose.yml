@@ -30,7 +30,11 @@ services:
       ADMIN_USERNAME: ${ADMIN_USERNAME}
       ADMIN_PASSWORD: ${ADMIN_PASSWORD}
       STORAGE_ROOT: ${STORAGE_ROOT}
+      STORAGE_LABEL: ${STORAGE_LABEL}
       RECORD_RETENTION_HOURS: ${RECORD_RETENTION_HOURS}
+      STORAGE_CLEANUP_THRESHOLD_PERCENT: ${STORAGE_CLEANUP_THRESHOLD_PERCENT}
+      STORAGE_CLEANUP_TARGET_PERCENT: ${STORAGE_CLEANUP_TARGET_PERCENT}
+      STORAGE_CLEANUP_INTERVAL_MINUTES: ${STORAGE_CLEANUP_INTERVAL_MINUTES}
       RECORD_SEGMENT_SECONDS: ${RECORD_SEGMENT_SECONDS}
       HLS_SEGMENT_SECONDS: ${HLS_SEGMENT_SECONDS}
       HLS_LIST_SIZE: ${HLS_LIST_SIZE}
@@ -38,7 +42,9 @@ services:
       TRANSCODE_PRESET: ${TRANSCODE_PRESET}
       TRANSCODE_BITRATE: ${TRANSCODE_BITRATE}
     volumes:
-      - ./storage:/storage
+      - type: bind
+        source: ${STORAGE_HOST_DIR:-./storage}
+        target: /storage
 
   # Đọc sub-stream NVR (nếu cấu hình) để nhận dạng người/xe; không can thiệp main-stream recording.
   ai:
@@ -59,7 +65,9 @@ services:
       AI_SYNC_SECONDS: ${AI_SYNC_SECONDS}
       AI_EVENT_COOLDOWN_SECONDS: ${AI_EVENT_COOLDOWN_SECONDS}
     volumes:
-      - ./storage:/storage
+      - type: bind
+        source: ${STORAGE_HOST_DIR:-./storage}
+        target: /storage
       - ./models:/models
 
   web:
@@ -79,7 +87,10 @@ services:
       - "${HTTP_PORT:-8080}:80"
     volumes:
       - ./nginx/nginx.conf:/etc/nginx/conf.d/default.conf:ro
-      - ./storage:/storage:ro
+      - type: bind
+        source: ${STORAGE_HOST_DIR:-./storage}
+        target: /storage
+        read_only: true
 
 volumes:
   pgdata:

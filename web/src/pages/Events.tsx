@@ -20,7 +20,7 @@ export default function Events() {
   useEffect(() => { load(); }, [cameraId]);
 
   return (
-    <div>
+    <section className="page-card events-page">
       <h2>Sự kiện AI</h2>
       <div style={{ display: 'flex', gap: 10, alignItems: 'center', marginBottom: 16 }}>
         <label>Camera: <select value={cameraId} onChange={(event) => setCameraId(event.target.value)}>
@@ -44,7 +44,7 @@ export default function Events() {
           ))}
         </div>
       )}
-    </div>
+    </section>
   );
 }
 

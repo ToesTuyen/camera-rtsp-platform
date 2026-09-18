@@ -51,6 +51,26 @@ export interface OnvifProbeResult {
   suggested_sub_uri: string | null;
 }
 
+export interface RecordingSegment {
+  file: string;
+  url: string;
+  size: number;
+  mtime: string;
+  started_at: string | null;
+}
+
+export interface StorageStatus {
+  label: string;
+  total_bytes: number;
+  used_bytes: number;
+  free_bytes: number;
+  used_percent: number;
+  recording_bytes: number;
+  recording_days: number;
+  cleanup_threshold_percent: number;
+  cleanup_target_percent: number;
+}
+
 function authHeaders(): Record<string, string> {
   const token = localStorage.getItem('token');
   return token ? { Authorization: `Bearer ${token}` } : {};
@@ -136,7 +156,17 @@ export const api = {
     const res = await fetch(`${API_BASE}/recordings/${cameraId}/${day}`, {
       headers: authHeaders(),
     });
-    return handle<{ playlist: string | null; segments: any[] }>(res);
+    return handle<{ playlist: string | null; segments: RecordingSegment[] }>(res);
+  },
+
+  async storageStatus() {
+    const res = await fetch(`${API_BASE}/recordings/storage`, { headers: authHeaders() });
+    return handle<StorageStatus>(res);
+  },
+
+  recordingPlaylist(cameraId: number, day: string, from?: string) {
+    const query = from ? `?from=${encodeURIComponent(from)}` : '';
+    return `${API_BASE}/recordings/${cameraId}/${day}/playlist${query}`;
   },
 
   async listEvents(filters: { cameraId?: number; from?: string; to?: string; label?: string; limit?: number } = {}) {

@@ -137,7 +137,7 @@ export default function Cameras() {
   }
 
   return (
-    <div>
+    <section className="page-card cameras-page">
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <h2>Cameras</h2>
         <button onClick={openAdd} style={primaryBtn}>+ Thêm camera</button>
@@ -267,7 +267,7 @@ export default function Cameras() {
           </div>
         </div>
       )}
-    </div>
+    </section>
   );
 }
 
@@ -293,7 +293,7 @@ const primaryBtn: React.CSSProperties = { padding: '8px 14px', background: '#256
 const smallBtn: React.CSSProperties = { padding: '4px 10px', marginRight: 6, border: '1px solid #ccc', borderRadius: 6, cursor: 'pointer', background: '#fff' };
 const dangerBtn: React.CSSProperties = { ...smallBtn, color: '#dc2626', borderColor: '#dc2626' };
 const overlay: React.CSSProperties = { position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center' };
-const modal: React.CSSProperties = { background: '#fff', padding: 24, borderRadius: 10, width: 420, maxWidth: '90%' };
+const modal: React.CSSProperties = { background: '#fff', color: '#111827', padding: 24, borderRadius: 10, width: 420, maxWidth: '90%' };
 
 function addRtspCredentials(uri: string, username: string, password: string): string {
   const url = new URL(uri);

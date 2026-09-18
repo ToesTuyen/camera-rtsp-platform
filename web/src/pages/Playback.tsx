@@ -1,79 +1,93 @@
 import { useEffect, useState } from 'react';
-import { useParams, Link } from 'react-router-dom';
-import { api, Camera } from '../api';
+import { Link, useParams } from 'react-router-dom';
+import { api, Camera, RecordingSegment } from '../api';
 import HlsPlayer from '../HlsPlayer';
+import Icon from '../Icon';
 
 export default function Playback() {
   const { id } = useParams();
   const cameraId = Number(id);
   const [cam, setCam] = useState<Camera | null>(null);
   const [days, setDays] = useState<string[]>([]);
-  const [day, setDay] = useState<string>('');
+  const [day, setDay] = useState('');
   const [playlist, setPlaylist] = useState<string | null>(null);
-  const [segments, setSegments] = useState<any[]>([]);
+  const [segments, setSegments] = useState<RecordingSegment[]>([]);
+  const [active, setActive] = useState('');
+  const [err, setErr] = useState('');
 
   useEffect(() => {
-    api.getCamera(cameraId).then(setCam).catch(() => undefined);
-    api.recordingDays(cameraId).then((d) => {
-      setDays(d);
-      if (d.length > 0) setDay(d[0]);
-    });
+    if (!Number.isFinite(cameraId)) return;
+    api.getCamera(cameraId).then(setCam).catch((error) => setErr(error.message));
+    api.recordingDays(cameraId).then((availableDays) => {
+      setDays(availableDays);
+      if (availableDays[0]) setDay(availableDays[0]);
+    }).catch((error) => setErr(error.message));
   }, [cameraId]);
 
   useEffect(() => {
     if (!day) return;
-    api.recordingDay(cameraId, day).then((r) => {
-      setPlaylist(r.playlist);
-      setSegments(r.segments);
-    });
+    setErr('');
+    setActive('');
+    api.recordingDay(cameraId, day).then((recording) => {
+      setPlaylist(recording.playlist);
+      setSegments(recording.segments);
+    }).catch((error) => setErr(error.message));
   }, [cameraId, day]);
 
-  function fmtDay(d: string) {
-    // 20260911 -> 2026-09-11
-    return `${d.slice(0, 4)}-${d.slice(4, 6)}-${d.slice(6, 8)}`;
+  function playFrom(segment: RecordingSegment) {
+    setActive(segment.file);
+    setPlaylist(api.recordingPlaylist(cameraId, day, segment.file));
   }
 
   return (
-    <div>
-      <Link to="/" style={{ color: '#2563eb' }}>&larr; Danh sách camera</Link>
-      <h2>Playback: {cam?.name ?? `Camera ${id}`}</h2>
-
-      {days.length === 0 && <p style={{ color: '#888' }}>Chưa có bản ghi nào.</p>}
-
-      {days.length > 0 && (
-        <div style={{ marginBottom: 12 }}>
-          <label>Ngày: </label>
-          <select value={day} onChange={(e) => setDay(e.target.value)}>
-            {days.map((d) => (
-              <option key={d} value={d}>{fmtDay(d)}</option>
-            ))}
-          </select>
+    <section className="page-card playback-page">
+      <div className="playback-heading">
+        <div>
+          <Link to="/storage" className="back-link">← Storage</Link>
+          <h2>{cam?.name ?? `Camera ${id}`}</h2>
+          <p>Chọn ngày và mốc thời gian để xem lại recording. Video chạy từ mốc bạn chọn đến segment mới nhất hiện có.</p>
         </div>
-      )}
-
-      <div style={{ maxWidth: 900 }}>
-        {playlist ? (
-          <HlsPlayer key={playlist} src={playlist} />
-        ) : (
-          day && <p style={{ color: '#888' }}>Không có playlist cho ngày này.</p>
-        )}
+        <div className="playback-day-picker"><Icon name="clock" size={18} /><select value={day} onChange={(event) => setDay(event.target.value)} disabled={days.length === 0}>
+          {days.length === 0 && <option>Chưa có recording</option>}
+          {days.map((value) => <option key={value} value={value}>{formatDay(value)}</option>)}
+        </select></div>
       </div>
 
-      {segments.length > 0 && (
-        <div style={{ marginTop: 16 }}>
-          <h4>Các đoạn ghi ({segments.length})</h4>
-          <ul style={{ maxHeight: 200, overflow: 'auto', fontSize: 13 }}>
-            {segments.map((s) => (
-              <li key={s.file}>
-                <a href={s.url} target="_blank" rel="noreferrer" style={{ color: '#2563eb' }}>
-                  {s.file}
-                </a>{' '}
-                ({(s.size / 1e6).toFixed(1)} MB)
-              </li>
-            ))}
-          </ul>
+      {err && <p className="form-error">{err}</p>}
+      {days.length === 0 && !err && <div className="playback-empty"><Icon name="clock" size={30} /><h3>Chưa có video đã ghi</h3><p>Hãy kiểm tra camera đang bật, trạng thái online và tùy chọn ghi hình (record).</p><Link to="/cameras">Mở cấu hình camera</Link></div>}
+
+      {days.length > 0 && <>
+        <div className="playback-player">
+          {playlist ? <HlsPlayer key={playlist} src={playlist} /> : <div className="playback-empty"><Icon name="video" size={30} /><p>Không có playlist cho ngày đã chọn.</p></div>}
         </div>
-      )}
-    </div>
+        <div className="recording-timeline">
+          <div className="recording-timeline-header"><div><h3>Dòng thời gian</h3><p>{segments.length} segment · {formatBytes(segments.reduce((total, segment) => total + segment.size, 0))}</p></div><button className="dark-button" onClick={() => { setActive(''); setPlaylist(`/rec/${cameraId}/${day}/index.m3u8`); }}><Icon name="play" size={16} />Phát từ đầu ngày</button></div>
+          <div className="segment-track" role="list" aria-label="Các đoạn recording">
+            {segments.map((segment, index) => <button key={segment.file} role="listitem" className={`recording-segment ${active === segment.file ? 'active' : ''}`} onClick={() => playFrom(segment)} title={`${formatTime(segment)} · ${formatBytes(segment.size)}`} style={{ '--segment-width': `${Math.max(3, 100 / Math.max(segments.length, 1))}%` } as React.CSSProperties}>
+              <span>{index % Math.max(1, Math.ceil(segments.length / 8)) === 0 ? formatTime(segment) : ''}</span>
+            </button>)}
+          </div>
+          <p className="timeline-help">Bấm một block màu xanh để bắt đầu playback tại đúng mốc đó. Recording là dữ liệu gốc của camera; browser có thể không phát trực tiếp recording H.265/HEVC.</p>
+        </div>
+        <details className="segment-details">
+          <summary>Chi tiết file ({segments.length}) <Icon name="chevronDown" size={17} /></summary>
+          <div>{segments.map((segment) => <button key={segment.file} onClick={() => playFrom(segment)}><span>{formatTime(segment)}</span><b>{segment.file}</b><small>{formatBytes(segment.size)}</small></button>)}</div>
+        </details>
+      </>}
+    </section>
   );
+}
+
+function formatDay(value: string): string {
+  return `${value.slice(6, 8)}/${value.slice(4, 6)}/${value.slice(0, 4)}`;
+}
+
+function formatTime(segment: RecordingSegment): string {
+  if (!segment.started_at) return segment.file;
+  return segment.started_at.slice(11, 16);
+}
+
+function formatBytes(value: number): string {
+  if (value < 1024 * 1024) return `${(value / 1024).toFixed(0)} KB`;
+  return `${(value / 1024 / 1024).toFixed(1)} MB`;
 }

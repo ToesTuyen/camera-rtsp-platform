@@ -19,7 +19,7 @@ export default function Live() {
   const liveUrl = `/live/${id}/index.m3u8`;
 
   return (
-    <div>
+    <section className="page-card live-page">
       <Link to="/" style={{ color: '#2563eb' }}>&larr; Danh sách camera</Link>
       <h2>Live: {cam?.name ?? `Camera ${id}`}</h2>
       <p style={{ color: '#666' }}>Trạng thái: {cam?.status}</p>
@@ -42,6 +42,6 @@ export default function Live() {
           )}
         </section>
       )}
-    </div>
+    </section>
   );
 }

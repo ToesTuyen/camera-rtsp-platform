@@ -50,17 +50,38 @@ Trong Docker Desktop > Settings > General, bật **Start Docker Desktop when you
 
 ### 2. Clone code và tạo cấu hình
 
-Dùng ổ còn nhiều dung lượng cho recording (ví dụ `D:` nếu có). Ví dụ dưới dùng `C:\CameraRTSP`:
+Dùng ổ còn nhiều dung lượng cho recording (ví dụ `D:` nếu có). Ví dụ dưới đặt code ở `C:\CameraRTSP` và dữ liệu video ở **Documents** của tài khoản Windows đang chạy Docker Desktop:
 
 ```powershell
 git clone https://github.com/ToesTuyen/camera-rtsp-platform.git C:\CameraRTSP
 Set-Location C:\CameraRTSP
 Copy-Item .env.example .env
-New-Item -ItemType Directory -Force storage, models | Out-Null
+$StorageDir = Join-Path ([Environment]::GetFolderPath('MyDocuments')) 'CameraRTSP\storage'
+New-Item -ItemType Directory -Force $StorageDir, models | Out-Null
 notepad .env
 ```
 
-Trong `.env`, đổi tối thiểu `POSTGRES_PASSWORD`, `DATABASE_URL` (chứa đúng cùng mật khẩu DB), `JWT_SECRET` và `ADMIN_PASSWORD` thành giá trị mạnh. Không commit file `.env` lên Git. Giữ `AI_DEVICE=cpu` nếu chưa chuẩn bị NVIDIA Container Toolkit/CUDA cho WSL 2.
+Trong `.env`, đổi tối thiểu `POSTGRES_PASSWORD`, `DATABASE_URL` (chứa đúng cùng mật khẩu DB), `JWT_SECRET` và `ADMIN_PASSWORD` thành giá trị mạnh. Thêm hoặc giữ các dòng sau (đổi `Tuyen` thành đúng thư mục user nếu khác):
+
+```dotenv
+STORAGE_HOST_DIR=C:/Users/Tuyen/Documents/CameraRTSP/storage
+STORAGE_LABEL=Documents/CameraRTSP/storage
+RECORD_RETENTION_HOURS=0
+STORAGE_CLEANUP_THRESHOLD_PERCENT=90
+STORAGE_CLEANUP_TARGET_PERCENT=85
+STORAGE_CLEANUP_INTERVAL_MINUTES=10
+```
+
+`RECORD_RETENTION_HOURS=0` nghĩa là không xoá theo số ngày cố định. Khi phân vùng chứa `Documents/CameraRTSP/storage` đạt **90%**, backend xoá **nguyên ngày recording cũ nhất đã hoàn tất** cho đến khi còn 85%. Nó không xoá live stream, snapshot AI hoặc ngày đang ghi. Không commit file `.env` lên Git. Giữ `AI_DEVICE=cpu` nếu chưa chuẩn bị NVIDIA Container Toolkit/CUDA cho WSL 2.
+
+Nếu bản cũ đã có dữ liệu tại `C:\CameraRTSP\storage`, dừng stack, copy dữ liệu sang Documents trước rồi mới bật cấu hình mới; chỉ xoá thư mục cũ sau khi đã mở Playback kiểm tra:
+
+```powershell
+docker compose down
+$StorageDir = Join-Path ([Environment]::GetFolderPath('MyDocuments')) 'CameraRTSP\storage'
+robocopy C:\CameraRTSP\storage $StorageDir /E /COPY:DAT
+docker compose up -d --build
+```
 
 Mặc định web dùng `HTTP_PORT=8080`. Nếu cổng này đã được chương trình khác dùng, chọn cổng trống như `HTTP_PORT=8081` và dùng cổng đó ở các bước sau.
 
@@ -259,8 +280,10 @@ Recording luôn copy codec gốc nên giữ chất lượng và ít CPU. H.265 c
 
 Ước tính recording: **10,8 GB/ngày cho mỗi 1 Mbps** bitrate. Ví dụ 16 camera × 4 Mbps cần khoảng 691 GB/ngày hoặc 20,7 TB cho 30 ngày, chưa tính RAID/dự phòng.
 
-- Dùng ổ lớn riêng cho `storage/`; nên có RAID và backup ngoài máy cho dữ liệu quan trọng.
-- Tăng `RECORD_RETENTION_HOURS` theo dung lượng thực tế.
+- `STORAGE_HOST_DIR` là thư mục trên máy chủ được Docker bind mount vào `/storage`; với Windows Desktop, đặt tại `Documents/CameraRTSP/storage` như phần cài đặt ở trên.
+- Mặc định không xóa theo ngày (`RECORD_RETENTION_HOURS=0`). Backend kiểm tra filesystem mỗi 10 phút; chỉ khi nó đạt `STORAGE_CLEANUP_THRESHOLD_PERCENT=90` mới xóa các **ngày recording đã kết thúc** từ cũ đến mới đến mức `STORAGE_CLEANUP_TARGET_PERCENT=85`.
+- Có thể đặt `RECORD_RETENTION_HOURS` lớn hơn 0 nếu cần một giới hạn thời gian độc lập. Việc dọn theo quota vẫn là lớp bảo vệ cuối cùng khi ổ đĩa sắp đầy.
+- Không dùng thư mục Documents làm nơi duy nhất cho dữ liệu quan trọng: nên có RAID và backup ngoài máy cho recording cần lưu lâu dài.
 - Giảm bitrate main stream trước khi giảm retention nếu cần tiết kiệm dung lượng.
 - Dùng sub-stream AI. Nhiều luồng AI hoặc nhiều live H.265 cần server Linux/NVIDIA chuyên dụng; cấu hình CPU mặc định phù hợp để bắt đầu, không phải cam kết hiệu năng cho số camera không giới hạn.
 
@@ -296,6 +319,8 @@ Backup `storage/` bằng công cụ backup filesystem/NAS theo lịch; không d�
 - `POST /api/cameras/onvif/probe` — dò thông tin thiết bị, profile và RTSP URI qua ONVIF
 - `GET /api/recordings/:cameraId/days`
 - `GET /api/recordings/:cameraId/:day`
+- `GET /api/recordings/:cameraId/:day/playlist?from=<segment>` — playlist playback bắt đầu từ một mốc đã chọn
+- `GET /api/recordings/storage` — dung lượng volume storage và chính sách tự dọn
 - `GET /api/events?cameraId=&from=&to=&label=&limit=`
 - `GET /api/health`
 

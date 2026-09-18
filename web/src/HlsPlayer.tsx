@@ -4,10 +4,11 @@ import Hls from 'hls.js';
 interface Props {
   src: string; // .m3u8 url
   live?: boolean;
+  controls?: boolean;
 }
 
 /** Player HLS dùng hls.js, fallback native HLS (Safari). */
-export default function HlsPlayer({ src, live = false }: Props) {
+export default function HlsPlayer({ src, live = false, controls = true }: Props) {
   const videoRef = useRef<HTMLVideoElement>(null);
 
   useEffect(() => {
@@ -21,6 +22,10 @@ export default function HlsPlayer({ src, live = false }: Props) {
         lowLatencyMode: live,
         liveSyncDurationCount: 3,
         enableWorker: true,
+        xhrSetup(xhr) {
+          const token = localStorage.getItem('token');
+          if (token && src.startsWith('/api/')) xhr.setRequestHeader('Authorization', `Bearer ${token}`);
+        },
       });
       hls.loadSource(src);
       hls.attachMedia(video);
@@ -42,10 +47,10 @@ export default function HlsPlayer({ src, live = false }: Props) {
   return (
     <video
       ref={videoRef}
-      controls
+      controls={controls}
       muted
       playsInline
-      style={{ width: '100%', background: '#000', borderRadius: 8 }}
+      style={{ width: '100%', height: '100%', background: '#000', borderRadius: controls ? 8 : 0 }}
     />
   );
 }

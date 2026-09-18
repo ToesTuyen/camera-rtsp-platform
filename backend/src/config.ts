@@ -6,6 +6,10 @@ function num(v: string | undefined, def: number): number {
   return Number.isFinite(n) ? n : def;
 }
 
+function percent(v: string | undefined, def: number): number {
+  return Math.min(100, Math.max(1, num(v, def)));
+}
+
 export const config = {
   nodeEnv: process.env.NODE_ENV ?? 'development',
   port: num(process.env.PORT, 4000),
@@ -21,7 +25,12 @@ export const config = {
   adminPassword: process.env.ADMIN_PASSWORD ?? 'admin',
 
   storageRoot: process.env.STORAGE_ROOT ?? '/storage',
-  recordRetentionHours: num(process.env.RECORD_RETENTION_HOURS, 72),
+  storageLabel: process.env.STORAGE_LABEL ?? 'Camera storage',
+  // 0 = giữ recording cho tới khi quota dung lượng yêu cầu dọn.
+  recordRetentionHours: Math.max(0, num(process.env.RECORD_RETENTION_HOURS, 0)),
+  storageCleanupThresholdPercent: percent(process.env.STORAGE_CLEANUP_THRESHOLD_PERCENT, 90),
+  storageCleanupTargetPercent: percent(process.env.STORAGE_CLEANUP_TARGET_PERCENT, 85),
+  storageCleanupIntervalMinutes: Math.max(1, num(process.env.STORAGE_CLEANUP_INTERVAL_MINUTES, 10)),
   recordSegmentSeconds: num(process.env.RECORD_SEGMENT_SECONDS, 600),
   hlsSegmentSeconds: num(process.env.HLS_SEGMENT_SECONDS, 2),
   hlsListSize: num(process.env.HLS_LIST_SIZE, 6),
