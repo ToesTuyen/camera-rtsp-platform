@@ -27,6 +27,63 @@ NVR sub-stream ──> AI worker (YOLO) ─────> event + snapshot
 | `nginx` | Cổng web/API và phân phối HLS/recording/snapshot |
 | `ai` | Python + YOLO, nhận dạng từ sub-stream |
 
+## Triển khai trên Windows 11 Pro với Docker Desktop
+
+Đây là cách phù hợp khi máy chủ camera chạy Windows 10/11 Pro. Docker Desktop phải dùng **Linux containers** và WSL 2; không chuyển sang Windows containers vì stack này dùng Alpine/Node/Python Linux.
+
+### 1. Cài Docker Desktop và kiểm tra
+
+Mở PowerShell **Run as Administrator**, cài WSL 2 nếu máy chưa có rồi khởi động lại khi Windows yêu cầu:
+
+```powershell
+wsl --install
+```
+
+Cài Docker Desktop, chọn backend **WSL 2** và Linux containers. Sau khi Docker Desktop báo `Engine running`, kiểm tra:
+
+```powershell
+docker version
+docker compose version
+```
+
+Trong Docker Desktop > Settings > General, bật **Start Docker Desktop when you sign in**. Các container của project dùng `restart: unless-stopped`, nên chúng sẽ tự chạy lại khi Docker Desktop khởi động.
+
+### 2. Clone code và tạo cấu hình
+
+Dùng ổ còn nhiều dung lượng cho recording (ví dụ `D:` nếu có). Ví dụ dưới dùng `C:\CameraRTSP`:
+
+```powershell
+git clone https://github.com/ToesTuyen/camera-rtsp-platform.git C:\CameraRTSP
+Set-Location C:\CameraRTSP
+Copy-Item .env.example .env
+New-Item -ItemType Directory -Force storage, models | Out-Null
+notepad .env
+```
+
+Trong `.env`, đổi tối thiểu `POSTGRES_PASSWORD`, `DATABASE_URL` (chứa đúng cùng mật khẩu DB), `JWT_SECRET` và `ADMIN_PASSWORD` thành giá trị mạnh. Không commit file `.env` lên Git. Giữ `AI_DEVICE=cpu` nếu chưa chuẩn bị NVIDIA Container Toolkit/CUDA cho WSL 2.
+
+Mặc định web dùng `HTTP_PORT=8080`. Nếu cổng này đã được chương trình khác dùng, chọn cổng trống như `HTTP_PORT=8081` và dùng cổng đó ở các bước sau.
+
+### 3. Khởi chạy, kiểm tra và chỉ mở LAN
+
+```powershell
+Set-Location C:\CameraRTSP
+docker compose config --quiet
+docker compose up -d --build
+docker compose ps
+Invoke-RestMethod http://localhost:8080/api/health
+```
+
+Kết quả mong đợi là `{"ok":true}`, năm service `postgres`, `backend`, `web`, `nginx`, `ai` đang `Up`, và PostgreSQL là `healthy`. Lần đầu AI tải model `yolov8n.pt` vào `models`.
+
+Chỉ cho thiết bị trong LAN tin cậy truy cập web. Ví dụ LAN là `192.168.0.0/24` và đang dùng cổng 8080:
+
+```powershell
+New-NetFirewallRule -Name CameraRTSP-Web-LAN -DisplayName 'Camera RTSP Platform (LAN)' -Direction Inbound -Action Allow -Protocol TCP -LocalPort 8080 -RemoteAddress 192.168.0.0/24 -Profile Private
+```
+
+Mở `http://<IP-may-Windows>:8080` từ máy cùng LAN và đăng nhập bằng `ADMIN_USERNAME`/`ADMIN_PASSWORD` trong `.env`. Không public cổng này trực tiếp ra Internet; dùng VPN như WireGuard/Tailscale nếu cần truy cập ngoài site.
+
 ## Triển khai production trên Windows Server
 
 Project dùng **Linux containers** (Alpine, Node, Python). Không cài Docker Desktop trực tiếp trên Windows Server: Docker xác nhận Docker Desktop không được hỗ trợ trên Windows Server, và Docker Engine native Windows chỉ chạy Windows containers, không chạy được stack này. Xem [Docker Desktop FAQ](https://docs.docker.com/desktop/troubleshoot-and-support/faqs/windowsfaqs/) và [Docker Engine trên Windows](https://docs.docker.com/engine/install/binaries/).
