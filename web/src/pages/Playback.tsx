@@ -49,7 +49,8 @@ export default function Playback() {
       setPlaylist(originalPlaylist);
       return;
     }
-    const segment = requestedSegment || segments[0]?.file;
+    // Mở đoạn mới nhất trước để có hình nhanh; các mốc còn lại được chuyển khi bấm.
+    const segment = requestedSegment || segments[segments.length - 1]?.file;
     if (!segment) return;
     let cancelled = false;
     let timer: number | undefined;
