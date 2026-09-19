@@ -110,7 +110,7 @@ export default function Playback() {
     <section className="page-card playback-page">
       <div className="playback-heading">
         <div>
-          <Link to="/storage" className="back-link">← Storage</Link>
+          <Link to="/playback" className="back-link">← Danh sách Playback</Link>
           <h2>{cam?.name ?? `Camera ${id}`}</h2>
           <p>Playback luôn đọc recording local trong Documents. Với H.265, hệ thống tạo HLS H.264 cho đoạn bạn chọn để browser phát và seek được, nhưng vẫn giữ nguyên video gốc.</p>
         </div>

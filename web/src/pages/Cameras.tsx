@@ -166,7 +166,7 @@ export default function Cameras() {
               <td style={td}>{c.record ? '✓' : '—'}</td>
               <td style={td}>{c.ai_enabled ? `${c.ai_fps ?? 2} FPS` : '—'}</td>
               <td style={td}>
-                <Link to={`/live/${c.id}`} style={link}>Live</Link>
+                <Link to={`/live?camera=${c.id}`} style={link}>Live</Link>
                 <Link to={`/playback/${c.id}`} style={link}>Playback</Link>
                 <button onClick={() => openEdit(c)} style={smallBtn}>Sửa</button>
                 <button onClick={() => remove(c)} style={dangerBtn}>Xóa</button>

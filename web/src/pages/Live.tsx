@@ -20,7 +20,7 @@ export default function Live() {
 
   return (
     <section className="page-card live-page">
-      <Link to="/" style={{ color: '#2563eb' }}>&larr; Danh sách camera</Link>
+      <Link to="/live" style={{ color: '#2563eb' }}>&larr; Live view</Link>
       <h2>Live: {cam?.name ?? `Camera ${id}`}</h2>
       <p style={{ color: '#666' }}>Trạng thái: {cam?.status}</p>
       <div style={{ maxWidth: 900 }}>
