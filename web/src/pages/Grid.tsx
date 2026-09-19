@@ -10,7 +10,8 @@ export default function Grid() {
   const [searchParams] = useSearchParams();
   const [cameras, setCameras] = useState<Camera[]>([]);
   const [selected, setSelected] = useState<Set<number>>(new Set());
-  const [layout, setLayout] = useState<LayoutSize>(4);
+  const [layout, setLayout] = useState<LayoutSize>(1);
+  const [featuredCameraId, setFeaturedCameraId] = useState<number | null>(null);
   const [err, setErr] = useState('');
   const focusedCameraId = Number(searchParams.get('camera'));
 
@@ -20,6 +21,7 @@ export default function Grid() {
       const enabled = items.filter((camera) => camera.enabled);
       const focused = enabled.find((camera) => camera.id === focusedCameraId);
       setSelected(new Set((focused ? [focused] : enabled.slice(0, 16)).map((camera) => camera.id)));
+      setFeaturedCameraId((focused ?? enabled[0])?.id ?? null);
     }).catch((error) => setErr(error.message));
   }, [focusedCameraId]);
 
@@ -28,13 +30,19 @@ export default function Grid() {
       const next = new Set(current);
       if (next.has(id)) next.delete(id);
       else next.add(id);
+      if (!next.has(featuredCameraId ?? -1)) setFeaturedCameraId(Array.from(next)[0] ?? null);
       return next;
     });
   }
 
+  const selectedCameras = useMemo(
+    () => cameras.filter((camera) => selected.has(camera.id)),
+    [cameras, selected]
+  );
+  const featuredCamera = selectedCameras.find((camera) => camera.id === featuredCameraId) ?? selectedCameras[0];
   const visible = useMemo(
-    () => cameras.filter((camera) => selected.has(camera.id)).slice(0, layout),
-    [cameras, layout, selected]
+    () => selectedCameras.slice(0, layout),
+    [layout, selectedCameras]
   );
   const now = new Intl.DateTimeFormat('vi-VN', { weekday: 'long', day: '2-digit', month: 'long' }).format(new Date());
 
@@ -54,8 +62,9 @@ export default function Grid() {
       </header>
 
       {err && <div className="mi-notice error">Không tải được camera: {err}</div>}
-      {!err && visible.length === 0 && <div className="mi-empty-state"><Icon name="camera" size={36} /><h2>Chưa có camera trong màn hình</h2><p>Thêm camera RTSP/ONVIF hoặc chọn camera ở bộ lọc phía trên.</p><Link to="/cameras">Thêm camera</Link></div>}
-      {!err && visible.length > 0 && <>
+      {!err && selectedCameras.length === 0 && <div className="mi-empty-state"><Icon name="camera" size={36} /><h2>Chưa có camera trong màn hình</h2><p>Thêm camera RTSP/ONVIF hoặc chọn camera ở bộ lọc phía trên.</p><Link to="/cameras">Thêm camera</Link></div>}
+      {!err && selectedCameras.length > 0 && layout === 1 && featuredCamera && <FocusView camera={featuredCamera} cameras={selectedCameras} onChoose={setFeaturedCameraId} />}
+      {!err && selectedCameras.length > 0 && layout !== 1 && <>
         <div className={`mi-camera-grid layout-${layout}`}>
           {visible.map((camera) => <CameraTile key={camera.id} camera={camera} />)}
         </div>
@@ -63,6 +72,39 @@ export default function Grid() {
       </>}
     </section>
   );
+}
+
+function FocusView({ camera, cameras, onChoose }: { camera: Camera; cameras: Camera[]; onChoose: (id: number) => void }) {
+  const offline = camera.status !== 'online';
+  return (
+    <>
+      <section className="mi-live-focus">
+        <article className="mi-featured-camera">
+          <div className="mi-featured-video">
+            <HlsPlayer src={`/live/${camera.id}/index.m3u8`} live controls={false} />
+            {offline && <div className="mi-stream-state"><i className={`status-dot ${camera.status}`} />{camera.status === 'connecting' ? 'Đang kết nối camera' : 'Camera chưa online'}</div>}
+            <div className="mi-featured-title"><i className={`status-dot ${camera.status}`} /><div><span>LIVE CAMERA</span><strong>{camera.name}</strong></div></div>
+          </div>
+        </article>
+        <aside className="mi-device-panel">
+          <div className="mi-device-panel-top"><span className="eyebrow">Thiết bị đang chọn</span><span className={`mi-status-label ${camera.status}`}>{camera.status === 'online' ? 'Online' : camera.status}</span></div>
+          <h2>{camera.name}</h2>
+          <p>Camera giám sát trong không gian của bạn, phát trực tiếp qua kết nối bảo mật.</p>
+          <dl><div><dt>Địa chỉ</dt><dd>{cameraHost(camera.rtsp_url)}</dd></div><div><dt>Video</dt><dd>{camera.codec.toUpperCase()}</dd></div><div><dt>Ghi hình</dt><dd>{camera.record ? 'Đang bật' : 'Đã tắt'}</dd></div></dl>
+          <div className="mi-device-quick-actions"><Link to={`/playback/${camera.id}`}><Icon name="clock" size={17} />Xem lại</Link><Link to="/cameras"><Icon name="settings" size={17} />Quản lý</Link></div>
+          <div className="mi-device-tip"><Icon name="video" size={17} /><span>Chọn một camera phía dưới để chuyển màn hình chính.</span></div>
+        </aside>
+      </section>
+      <section className="mi-camera-carousel" aria-label="Chuyển camera">
+        <div><span className="eyebrow">Camera trong nhà</span><strong>{cameras.length} thiết bị</strong></div>
+        <div className="mi-carousel-items">{cameras.map((item) => <button key={item.id} type="button" className={item.id === camera.id ? 'active' : ''} onClick={() => onChoose(item.id)}><i className={`status-dot ${item.status}`} /><span>{item.name}</span><small>{item.status === 'online' ? 'Đang phát' : item.status}</small></button>)}</div>
+      </section>
+    </>
+  );
+}
+
+function cameraHost(url: string): string {
+  try { return new URL(url).hostname; } catch { return 'Camera RTSP'; }
 }
 
 function CameraTile({ camera }: { camera: Camera }) {
