@@ -4,6 +4,7 @@ import path from 'path';
 import { config } from '../config';
 import { requireAuth } from '../middleware/auth';
 import { getStorageStatus } from '../stream/retention';
+import { browserPlaybackManager } from '../stream/playback';
 
 const router = Router();
 router.use(requireAuth);
@@ -40,6 +41,16 @@ router.get('/:cameraId/days', (req, res) => {
   res.json(days);
 });
 
+/** Chuẩn bị HLS H.264 cho recording HEVC để playback/seek được trong browser. */
+router.post('/:cameraId/:day/browser-playback', (req, res) => {
+  const { cameraId, day } = req.params;
+  if (!isCameraId(cameraId) || !isDay(day)) {
+    res.status(400).json({ error: 'Camera hoặc ngày không hợp lệ' });
+    return;
+  }
+  res.json(browserPlaybackManager.prepare(cameraId, day));
+});
+
 /**
  * Liệt kê segment của 1 ngày.
  * GET /api/recordings/:cameraId/:day -> danh sách file + playlist url
@@ -67,6 +78,7 @@ router.get('/:cameraId/:day', (req, res) => {
         size: st.size,
         mtime: st.mtime,
         started_at: startedAtFromFilename(f),
+        duration_s: config.recordSegmentSeconds,
       };
     });
   const hasPlaylist = files.includes('index.m3u8');

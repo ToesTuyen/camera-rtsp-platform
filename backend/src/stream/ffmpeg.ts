@@ -21,15 +21,18 @@ export interface FfmpegPaths {
   liveDir: string;
   liveIndex: string;
   recDir: string;
+  playbackDir: string;
 }
 
 export function resolvePaths(cameraId: number): FfmpegPaths {
   const liveDir = path.join(config.storageRoot, 'live', String(cameraId));
   const recDir = path.join(config.storageRoot, 'rec', String(cameraId));
+  const playbackDir = path.join(config.storageRoot, 'playback', String(cameraId));
   return {
     liveDir,
     liveIndex: path.join(liveDir, 'index.m3u8'),
     recDir,
+    playbackDir,
   };
 }
 
@@ -138,6 +141,30 @@ function buildArgs(
       '-hls_segment_filename', path.join(dayDir, 'rec_%Y%m%d_%H%M%S.ts'),
       path.join(dayDir, 'index.m3u8')
     );
+
+    // Recording gốc HEVC giữ nguyên ở /rec. Browser không hỗ trợ HLS/HEVC ổn
+    // định, nên tạo archive H.264 tách riêng cho web playback. H.264 nguồn thì
+    // dùng luôn recording gốc, không tạo bản sao và không tốn thêm CPU/dung lượng.
+    if (liveCodec === 'h265' && config.browserPlaybackArchive) {
+      const playbackDayDir = path.join(paths.playbackDir, day);
+      fs.mkdirSync(playbackDayDir, { recursive: true });
+      args.push(
+        '-map', '0:v:0',
+        '-an',
+        '-c:v', 'libx264',
+        '-preset', config.browserPlaybackPreset,
+        '-b:v', config.browserPlaybackBitrate,
+        '-pix_fmt', 'yuv420p',
+        '-g', '48',
+        '-force_key_frames', `expr:gte(t,n_forced*${config.browserPlaybackSegmentSeconds})`,
+        '-f', 'hls',
+        '-hls_time', String(config.browserPlaybackSegmentSeconds),
+        '-hls_list_size', '0',
+        '-hls_flags', 'append_list+independent_segments',
+        '-hls_segment_filename', path.join(playbackDayDir, 'play_%06d.ts'),
+        path.join(playbackDayDir, 'index.m3u8')
+      );
+    }
   }
 
   return args;
@@ -163,6 +190,7 @@ export async function startFfmpeg(
   const paths = resolvePaths(cameraId);
   fs.mkdirSync(paths.liveDir, { recursive: true });
   fs.mkdirSync(paths.recDir, { recursive: true });
+  fs.mkdirSync(paths.playbackDir, { recursive: true });
 
   const liveCodec = await resolveLiveCodec(rtspUrl, codec);
   const args = buildArgs(rtspUrl, record, paths, liveCodec);

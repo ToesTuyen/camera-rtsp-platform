@@ -32,6 +32,12 @@ export const config = {
   storageCleanupTargetPercent: percent(process.env.STORAGE_CLEANUP_TARGET_PERCENT, 85),
   storageCleanupIntervalMinutes: Math.max(1, num(process.env.STORAGE_CLEANUP_INTERVAL_MINUTES, 10)),
   recordSegmentSeconds: num(process.env.RECORD_SEGMENT_SECONDS, 600),
+  // H.265 recording gốc không phát/seek được trên Chrome. Tạo HLS H.264 riêng
+  // cho playback web, vẫn giữ nguyên recording copy gốc ở /rec.
+  browserPlaybackArchive: process.env.BROWSER_PLAYBACK_ARCHIVE !== 'false',
+  browserPlaybackSegmentSeconds: Math.max(2, num(process.env.BROWSER_PLAYBACK_SEGMENT_SECONDS, 10)),
+  browserPlaybackPreset: process.env.BROWSER_PLAYBACK_PRESET || 'veryfast',
+  browserPlaybackBitrate: process.env.BROWSER_PLAYBACK_BITRATE || '2000k',
   hlsSegmentSeconds: num(process.env.HLS_SEGMENT_SECONDS, 2),
   hlsListSize: num(process.env.HLS_LIST_SIZE, 6),
   recordTimezone: process.env.RECORD_TIMEZONE ?? 'Asia/Ho_Chi_Minh',

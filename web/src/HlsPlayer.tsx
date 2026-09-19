@@ -5,10 +5,11 @@ interface Props {
   src: string; // .m3u8 url
   live?: boolean;
   controls?: boolean;
+  startPosition?: number;
 }
 
 /** Player HLS dùng hls.js, fallback native HLS (Safari). */
-export default function HlsPlayer({ src, live = false, controls = true }: Props) {
+export default function HlsPlayer({ src, live = false, controls = true, startPosition = -1 }: Props) {
   const videoRef = useRef<HTMLVideoElement>(null);
 
   useEffect(() => {
@@ -22,6 +23,7 @@ export default function HlsPlayer({ src, live = false, controls = true }: Props)
         lowLatencyMode: live,
         liveSyncDurationCount: 3,
         enableWorker: true,
+        startPosition,
         xhrSetup(xhr) {
           const token = localStorage.getItem('token');
           if (token && src.startsWith('/api/')) xhr.setRequestHeader('Authorization', `Bearer ${token}`);
@@ -42,7 +44,7 @@ export default function HlsPlayer({ src, live = false, controls = true }: Props)
     return () => {
       if (hls) hls.destroy();
     };
-  }, [src, live]);
+  }, [src, live, startPosition]);
 
   return (
     <video

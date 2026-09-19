@@ -57,6 +57,13 @@ export interface RecordingSegment {
   size: number;
   mtime: string;
   started_at: string | null;
+  duration_s: number;
+}
+
+export interface BrowserPlaybackState {
+  status: 'ready' | 'processing' | 'error';
+  playlist: string | null;
+  error: string | null;
 }
 
 export interface StorageStatus {
@@ -167,6 +174,14 @@ export const api = {
   recordingPlaylist(cameraId: number, day: string, from?: string) {
     const query = from ? `?from=${encodeURIComponent(from)}` : '';
     return `${API_BASE}/recordings/${cameraId}/${day}/playlist${query}`;
+  },
+
+  async prepareBrowserPlayback(cameraId: number, day: string) {
+    const res = await fetch(`${API_BASE}/recordings/${cameraId}/${day}/browser-playback`, {
+      method: 'POST',
+      headers: authHeaders(),
+    });
+    return handle<BrowserPlaybackState>(res);
   },
 
   async listEvents(filters: { cameraId?: number; from?: string; to?: string; label?: string; limit?: number } = {}) {

@@ -10,9 +10,12 @@ export default function Playback() {
   const [cam, setCam] = useState<Camera | null>(null);
   const [days, setDays] = useState<string[]>([]);
   const [day, setDay] = useState('');
+  const [originalPlaylist, setOriginalPlaylist] = useState<string | null>(null);
   const [playlist, setPlaylist] = useState<string | null>(null);
   const [segments, setSegments] = useState<RecordingSegment[]>([]);
   const [active, setActive] = useState('');
+  const [startPosition, setStartPosition] = useState(-1);
+  const [preparing, setPreparing] = useState(false);
   const [err, setErr] = useState('');
 
   useEffect(() => {
@@ -28,14 +31,57 @@ export default function Playback() {
     if (!day) return;
     setErr('');
     setActive('');
+    setStartPosition(-1);
+    setOriginalPlaylist(null);
+    setPlaylist(null);
     api.recordingDay(cameraId, day).then((recording) => {
-      setPlaylist(recording.playlist);
+      setOriginalPlaylist(recording.playlist);
       setSegments(recording.segments);
     }).catch((error) => setErr(error.message));
   }, [cameraId, day]);
 
-  function playFrom(segment: RecordingSegment) {
+  useEffect(() => {
+    if (!day || !originalPlaylist) return;
+    if (cam?.codec !== 'h265') {
+      setPreparing(false);
+      setPlaylist(originalPlaylist);
+      return;
+    }
+    let cancelled = false;
+    let timer: number | undefined;
+    const prepare = async () => {
+      try {
+        setPreparing(true);
+        const state = await api.prepareBrowserPlayback(cameraId, day);
+        if (cancelled) return;
+        if (state.playlist) setPlaylist(state.playlist);
+        if (state.status === 'processing') {
+          timer = window.setTimeout(prepare, 3000);
+          return;
+        }
+        setPreparing(false);
+        if (state.status === 'error') setErr(state.error ?? 'Không thể chuyển recording H.265 cho browser');
+      } catch (error: any) {
+        if (!cancelled) {
+          setPreparing(false);
+          setErr(error.message);
+        }
+      }
+    };
+    void prepare();
+    return () => {
+      cancelled = true;
+      if (timer) window.clearTimeout(timer);
+    };
+  }, [cam?.codec, cameraId, day, originalPlaylist]);
+
+  function playFrom(segment: RecordingSegment, index: number) {
     setActive(segment.file);
+    if (cam?.codec === 'h265') {
+      setStartPosition(segments.slice(0, index).reduce((total, item) => total + item.duration_s, 0));
+      return;
+    }
+    setStartPosition(-1);
     setPlaylist(api.recordingPlaylist(cameraId, day, segment.file));
   }
 
@@ -45,7 +91,7 @@ export default function Playback() {
         <div>
           <Link to="/storage" className="back-link">← Storage</Link>
           <h2>{cam?.name ?? `Camera ${id}`}</h2>
-          <p>Chọn ngày và mốc thời gian để xem lại recording. Video chạy từ mốc bạn chọn đến segment mới nhất hiện có.</p>
+          <p>Chọn ngày và mốc thời gian để xem lại recording. Với H.265, hệ thống tự tạo HLS H.264 tương thích browser nhưng vẫn giữ nguyên video gốc.</p>
         </div>
         <div className="playback-day-picker"><Icon name="clock" size={18} /><select value={day} onChange={(event) => setDay(event.target.value)} disabled={days.length === 0}>
           {days.length === 0 && <option>Chưa có recording</option>}
@@ -58,20 +104,21 @@ export default function Playback() {
 
       {days.length > 0 && <>
         <div className="playback-player">
-          {playlist ? <HlsPlayer key={playlist} src={playlist} /> : <div className="playback-empty"><Icon name="video" size={30} /><p>Không có playlist cho ngày đã chọn.</p></div>}
+          {playlist ? <HlsPlayer key={`${playlist}-${startPosition}`} src={playlist} startPosition={startPosition} /> : <div className="playback-empty"><Icon name="video" size={30} /><p>{preparing ? 'Đang tạo bản phát H.264 để browser có thể play và seek…' : 'Không có playlist cho ngày đã chọn.'}</p></div>}
         </div>
+        {preparing && <p className="playback-preparing"><Icon name="clock" size={16} />Đang chuẩn bị playback H.264. Bạn có thể chờ tại trang này; player sẽ tự sẵn sàng.</p>}
         <div className="recording-timeline">
-          <div className="recording-timeline-header"><div><h3>Dòng thời gian</h3><p>{segments.length} segment · {formatBytes(segments.reduce((total, segment) => total + segment.size, 0))}</p></div><button className="dark-button" onClick={() => { setActive(''); setPlaylist(`/rec/${cameraId}/${day}/index.m3u8`); }}><Icon name="play" size={16} />Phát từ đầu ngày</button></div>
+          <div className="recording-timeline-header"><div><h3>Dòng thời gian</h3><p>{segments.length} segment · {formatBytes(segments.reduce((total, segment) => total + segment.size, 0))}</p></div><button className="dark-button" disabled={!playlist} onClick={() => { setActive(''); setStartPosition(0); setPlaylist(cam?.codec === 'h265' ? playlist : `/rec/${cameraId}/${day}/index.m3u8`); }}><Icon name="play" size={16} />Phát từ đầu ngày</button></div>
           <div className="segment-track" role="list" aria-label="Các đoạn recording">
-            {segments.map((segment, index) => <button key={segment.file} role="listitem" className={`recording-segment ${active === segment.file ? 'active' : ''}`} onClick={() => playFrom(segment)} title={`${formatTime(segment)} · ${formatBytes(segment.size)}`} style={{ '--segment-width': `${Math.max(3, 100 / Math.max(segments.length, 1))}%` } as React.CSSProperties}>
+            {segments.map((segment, index) => <button key={segment.file} role="listitem" disabled={!playlist} className={`recording-segment ${active === segment.file ? 'active' : ''}`} onClick={() => playFrom(segment, index)} title={`${formatTime(segment)} · ${formatBytes(segment.size)}`} style={{ '--segment-width': `${Math.max(3, 100 / Math.max(segments.length, 1))}%` } as React.CSSProperties}>
               <span>{index % Math.max(1, Math.ceil(segments.length / 8)) === 0 ? formatTime(segment) : ''}</span>
             </button>)}
           </div>
-          <p className="timeline-help">Bấm một block màu xanh để bắt đầu playback tại đúng mốc đó. Recording là dữ liệu gốc của camera; browser có thể không phát trực tiếp recording H.265/HEVC.</p>
+          <p className="timeline-help">Bấm một block màu xanh để nhảy tới đúng mốc. Bản H.265 gốc không bị thay đổi; web dùng HLS H.264 tương thích riêng để phát và seek.</p>
         </div>
         <details className="segment-details">
           <summary>Chi tiết file ({segments.length}) <Icon name="chevronDown" size={17} /></summary>
-          <div>{segments.map((segment) => <button key={segment.file} onClick={() => playFrom(segment)}><span>{formatTime(segment)}</span><b>{segment.file}</b><small>{formatBytes(segment.size)}</small></button>)}</div>
+          <div>{segments.map((segment, index) => <button key={segment.file} disabled={!playlist} onClick={() => playFrom(segment, index)}><span>{formatTime(segment)}</span><b>{segment.file}</b><small>{formatBytes(segment.size)}</small></button>)}</div>
         </details>
       </>}
     </section>

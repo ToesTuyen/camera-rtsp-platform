@@ -128,6 +128,8 @@ function recordingDays(): RecordingDay[] {
         bytes += st.size;
         newestMtimeMs = Math.max(newestMtimeMs, st.mtimeMs);
       }
+      const browserPlaybackDir = path.join(config.storageRoot, 'playback', cameraId, day);
+      if (fs.existsSync(browserPlaybackDir)) bytes += directoryBytes(browserPlaybackDir);
       results.push({ path: dayDir, day, bytes, newestMtimeMs });
     }
   }
@@ -135,8 +137,21 @@ function recordingDays(): RecordingDay[] {
 }
 
 function removeDay(day: RecordingDay, reason: string): void {
+  const cameraId = path.basename(path.dirname(day.path));
   fs.rmSync(day.path, { recursive: true, force: true });
+  // Bản H.264 phục vụ browser playback là dẫn xuất của recording gốc, nên dọn
+  // cùng ngày để quota thực sự được giải phóng và không để orphan files.
+  fs.rmSync(path.join(config.storageRoot, 'playback', cameraId, day.day), { recursive: true, force: true });
   console.log(`[retention] removed ${day.path} (${formatBytes(day.bytes)}, ${reason})`);
+}
+
+function directoryBytes(dir: string): number {
+  let total = 0;
+  for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+    const entryPath = path.join(dir, entry.name);
+    total += entry.isDirectory() ? directoryBytes(entryPath) : fs.statSync(entryPath).size;
+  }
+  return total;
 }
 
 function currentRecordDay(): string {
