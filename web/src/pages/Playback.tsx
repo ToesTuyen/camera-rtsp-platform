@@ -72,7 +72,10 @@ export default function Playback() {
         setPreparing(true);
         const state = await api.prepareBrowserPlayback(cameraId, day, segment);
         if (cancelled) return;
-        if (state.playlist) setPlaylist(state.playlist);
+        if (state.playlist) {
+          setPlaylist(state.playlist);
+          setStartPosition(state.start_position ?? -1);
+        }
         if (state.status === 'processing') {
           timer = window.setTimeout(prepare, 3000);
           return;

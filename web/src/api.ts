@@ -64,6 +64,7 @@ export interface BrowserPlaybackState {
   status: 'ready' | 'processing' | 'error';
   playlist: string | null;
   error: string | null;
+  start_position: number | null;
 }
 
 export interface StorageStatus {

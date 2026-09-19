@@ -7,6 +7,8 @@ export interface BrowserPlaybackState {
   status: 'ready' | 'processing' | 'error';
   playlist: string | null;
   error: string | null;
+  /** Vị trí bắt đầu (giây) trong archive H.264 tự tạo. */
+  start_position: number | null;
 }
 
 interface PlaybackJob extends BrowserPlaybackState {
@@ -28,31 +30,39 @@ class BrowserPlaybackManager {
     const playlistUrl = `/playback/prepared/${cameraId}/${day}/${segmentKey}/index.m3u8`;
     const sourceDir = path.join(config.storageRoot, 'rec', cameraId, day);
     if (!fs.existsSync(sourceDir)) {
-      return { status: 'error', playlist: null, error: 'Không tìm thấy recording nguồn' };
+      return { status: 'error', playlist: null, error: 'Không tìm thấy recording nguồn', start_position: null };
     }
     const allSegments = fs.readdirSync(sourceDir).filter((file) => file.endsWith('.ts')).sort();
     const segments = from ? allSegments.filter((file) => file === from) : allSegments;
     if (from && segments.length === 0) {
-      return { status: 'error', playlist: null, error: 'Segment playback không tồn tại' };
+      return { status: 'error', playlist: null, error: 'Segment playback không tồn tại', start_position: null };
     }
     if (segments.length === 0) {
-      return { status: 'error', playlist: null, error: 'Recording chưa có segment nào' };
+      return { status: 'error', playlist: null, error: 'Recording chưa có segment nào', start_position: null };
     }
     const sourceDuration = from
       ? segmentDuration(path.join(sourceDir, 'index.m3u8'), from)
       : playlistDuration(path.join(sourceDir, 'index.m3u8'));
-    const existing = this.jobs.get(key);
-    if (existing?.status === 'processing') return this.publicState(existing);
+    const dayDuration = playlistDuration(path.join(sourceDir, 'index.m3u8'));
     // Archive tự tạo khi camera đang ghi chỉ có phần video kể từ lúc worker start;
-    // chỉ dùng nó khi đã phủ toàn bộ playlist recording của ngày đó.
+    // chỉ dùng nó khi đã phủ toàn bộ playlist recording của ngày đó. Khi có,
+    // phát thẳng archive local và nhảy tới offset của segment đã bấm — không
+    // phải đợi FFmpeg chuyển đổi lại từng segment H.265.
     const automaticPlaylist = path.join(config.storageRoot, 'playback', cameraId, day, 'index.m3u8');
-    if (!from && playlistCovers(automaticPlaylist, sourceDuration)) {
-      const state: PlaybackJob = { status: 'ready', playlist: `/playback/${cameraId}/${day}/index.m3u8`, error: null };
+    if (playlistCovers(automaticPlaylist, dayDuration)) {
+      const state: PlaybackJob = {
+        status: 'ready',
+        playlist: `/playback/${cameraId}/${day}/index.m3u8`,
+        error: null,
+        start_position: from ? segmentOffset(path.join(sourceDir, 'index.m3u8'), from) : null,
+      };
       this.jobs.set(key, state);
       return this.publicState(state);
     }
+    const existing = this.jobs.get(key);
+    if (existing?.status === 'processing') return this.publicState(existing);
     if (playlistCovers(playlistFile, sourceDuration)) {
-      const state: PlaybackJob = { status: 'ready', playlist: playlistUrl, error: null };
+      const state: PlaybackJob = { status: 'ready', playlist: playlistUrl, error: null, start_position: null };
       this.jobs.set(key, state);
       return this.publicState(state);
     }
@@ -64,7 +74,7 @@ class BrowserPlaybackManager {
     const concatFile = path.join(outputDir, '.concat.txt');
     fs.writeFileSync(concatFile, segments.map((file) => `file '${path.join(sourceDir, file).replace(/'/g, "'\\''")}'`).join('\n') + '\n');
 
-    const job: PlaybackJob = { status: 'processing', playlist: null, error: null };
+    const job: PlaybackJob = { status: 'processing', playlist: null, error: null, start_position: null };
     this.jobs.set(key, job);
     const args = [
       '-hide_banner', '-loglevel', 'warning', '-y',
@@ -92,6 +102,7 @@ class BrowserPlaybackManager {
       } else {
         job.status = 'error';
         job.playlist = null;
+        job.start_position = null;
         job.error = lastError || `FFmpeg playback transcode thất bại (code ${code})`;
         console.error(`[playback] transcode failed for ${key}: ${job.error}`);
       }
@@ -100,7 +111,7 @@ class BrowserPlaybackManager {
   }
 
   private publicState(job: PlaybackJob): BrowserPlaybackState {
-    return { status: job.status, playlist: job.playlist, error: job.error };
+    return { status: job.status, playlist: job.playlist, error: job.error, start_position: job.start_position ?? null };
   }
 }
 
@@ -127,6 +138,24 @@ function segmentDuration(playlist: string, segment: string): number {
       continue;
     }
     if (pendingDuration && path.basename(line) === segment) return pendingDuration;
+  }
+  return 0;
+}
+
+function segmentOffset(playlist: string, segment: string): number {
+  if (!fs.existsSync(playlist)) return 0;
+  let offset = 0;
+  let pendingDuration = 0;
+  for (const line of fs.readFileSync(playlist, 'utf8').split(/\r?\n/)) {
+    const match = /^#EXTINF:([0-9.]+)/.exec(line);
+    if (match) {
+      pendingDuration = Number(match[1]);
+      continue;
+    }
+    if (!pendingDuration || !line || line.startsWith('#')) continue;
+    if (path.basename(line) === segment) return offset;
+    offset += pendingDuration;
+    pendingDuration = 0;
   }
   return 0;
 }
