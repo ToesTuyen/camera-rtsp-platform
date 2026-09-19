@@ -4,7 +4,7 @@ import { api, Camera } from '../api';
 import HlsPlayer from '../HlsPlayer';
 import Icon from '../Icon';
 
-type LayoutSize = 1 | 4 | 9;
+type LayoutSize = 1 | 4 | 9 | 16;
 
 /** Live multi-view. Chỉ khởi tạo HLS cho các camera người dùng đã chọn. */
 export default function Grid() {
@@ -20,7 +20,7 @@ export default function Grid() {
       setCameras(items);
       const enabled = items.filter((camera) => camera.enabled);
       const focused = enabled.find((camera) => camera.id === focusedCameraId);
-      setSelected(new Set((focused ? [focused] : enabled.slice(0, 9)).map((camera) => camera.id)));
+      setSelected(new Set((focused ? [focused] : enabled.slice(0, 16)).map((camera) => camera.id)));
     }).catch((error) => setErr(error.message));
   }, [focusedCameraId]);
 
@@ -57,9 +57,9 @@ export default function Grid() {
         </details>
         <div className="layout-picker" role="group" aria-label="Bố cục Live view">
           <span>Bố cục</span>
-          {([1, 4, 9] as LayoutSize[]).map((size) => (
+          {([1, 4, 9, 16] as LayoutSize[]).map((size) => (
             <button key={size} type="button" className={layout === size ? 'active' : ''} onClick={() => setLayout(size)} title={`Hiển thị tối đa ${size} camera`}>
-              {size === 1 ? '1' : size === 4 ? '2×2' : '3×3'}
+              {size === 1 ? '1' : size === 4 ? '2×2' : size === 9 ? '3×3' : '4×4'}
             </button>
           ))}
         </div>
@@ -83,7 +83,7 @@ export default function Grid() {
         <div className={`camera-grid live-grid layout-${layout}`}>
           {visible.map((camera) => <CameraTile key={camera.id} camera={camera} />)}
         </div>
-        <p className="live-grid-note">Đang hiển thị {visible.length}/{selected.size} camera đã chọn. Chọn bố cục 3×3 để xem cùng lúc tối đa 9 camera.</p>
+        <p className="live-grid-note">Đang hiển thị {visible.length}/{selected.size} camera đã chọn. Bố cục 4×4 xem cùng lúc tối đa 16 camera.</p>
       </>}
     </section>
   );

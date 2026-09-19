@@ -41,7 +41,7 @@ function Layout({ children }: { children: React.ReactNode }) {
           <span className="header-rule" />
           <nav className="top-nav" aria-label="Điều hướng chính">
             <NavLink to="/live" end>Live view</NavLink>
-            <NavLink to="/playback" end>Playback</NavLink>
+            <NavLink to="/playback">Playback</NavLink>
             <NavLink to="/cameras">Camera</NavLink>
             <NavLink to="/events">Sự kiện AI</NavLink>
           </nav>
