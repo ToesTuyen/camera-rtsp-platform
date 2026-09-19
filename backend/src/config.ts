@@ -31,7 +31,9 @@ export const config = {
   storageCleanupThresholdPercent: percent(process.env.STORAGE_CLEANUP_THRESHOLD_PERCENT, 90),
   storageCleanupTargetPercent: percent(process.env.STORAGE_CLEANUP_TARGET_PERCENT, 85),
   storageCleanupIntervalMinutes: Math.max(1, num(process.env.STORAGE_CLEANUP_INTERVAL_MINUTES, 10)),
-  recordSegmentSeconds: num(process.env.RECORD_SEGMENT_SECONDS, 600),
+  // Giữ segment gốc ngắn để người dùng chọn một mốc H.265 thì bản chuyển đổi
+  // playback không phải xử lý đến 10 phút video trong một lần.
+  recordSegmentSeconds: Math.max(10, num(process.env.RECORD_SEGMENT_SECONDS, 60)),
   // H.265 recording gốc không phát/seek được trên Chrome. Tạo HLS H.264 riêng
   // cho playback web, vẫn giữ nguyên recording copy gốc ở /rec.
   browserPlaybackArchive: process.env.BROWSER_PLAYBACK_ARCHIVE !== 'false',

@@ -274,7 +274,7 @@ Các lỗi phổ biến: sai đường dẫn RTSP của NVR, VM không route t�
 | H.264 | Copy | Copy codec gốc, phát/seek trực tiếp trên web |
 | H.265/HEVC | Transcode sang H.264 | Giữ bản gốc + HLS H.264 tương thích web |
 
-Recording luôn giữ bản copy codec gốc nên không mất chất lượng. Vì Chrome/Edge không phát hoặc seek HLS/HEVC ổn định, camera H.265 có thêm một archive H.264 chỉ phục vụ web Playback; tính năng này dùng thêm CPU/dung lượng. Với recording H.265 đã có từ trước, lần đầu mở Playback hệ thống tạo archive H.264 theo yêu cầu, sau đó dùng lại. AI đọc sub-stream độc lập, có cooldown để giảm event trùng lặp; đây là nhận dạng đối tượng, không phải nhận diện khuôn mặt/biển số.
+Recording luôn giữ bản copy codec gốc nên không mất chất lượng. Vì Chrome/Edge không phát hoặc seek HLS/HEVC ổn định, camera H.265 có thêm một archive H.264 chỉ phục vụ web Playback; tính năng này dùng thêm CPU/dung lượng. Với recording H.265 đã có từ trước, lần đầu mở một mốc Playback hệ thống chuyển file local của chính mốc đó sang H.264, sau đó dùng lại bản cache; thao tác này không kết nối lại RTSP/camera. Mặc định recording chia thành segment 60 giây để lần chuẩn bị đầu tiên không phải chờ chuyển đổi một đoạn quá dài. AI đọc sub-stream độc lập, có cooldown để giảm event trùng lặp; đây là nhận dạng đối tượng, không phải nhận diện khuôn mặt/biển số.
 
 ## Dung lượng, hiệu năng và lưu trữ
 

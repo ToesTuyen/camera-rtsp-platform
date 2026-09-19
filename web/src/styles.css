@@ -155,10 +155,12 @@ details:not([open]) .tree-summary .tree-chevron { transform: rotate(-90deg); }
 .timeline-track { position: relative; height: 82px; padding-top: 24px; overflow: hidden; }
 .timeline-times { position: absolute; inset: 0 0 auto; display: flex; justify-content: space-between; color: #858585; font-size: 12px; }
 .timeline-ruler { position: absolute; top: 24px; right: 0; left: 0; height: 13px; opacity: .68; background: repeating-linear-gradient(90deg, #707070 0 1px, transparent 1px 4px); }
-.timeline-recordings { position: absolute; right: 0; bottom: 3px; left: 0; display: flex; gap: 8px; height: 47px; align-items: stretch; }
-.timeline-recordings i { display: block; height: 100%; min-width: 30px; background: linear-gradient(90deg, #0871ad, #21a4f4 48%, #0b79b9); }
-.timeline-recordings i:nth-child(1) { flex: .7; }.timeline-recordings i:nth-child(2) { flex: 1.5; }.timeline-recordings i:nth-child(3) { flex: 1; }.timeline-recordings i:nth-child(4) { flex: 1.35; }.timeline-recordings i:nth-child(5) { flex: .65; }
-.timeline-marker { position: absolute; top: 20px; bottom: 0; left: 67%; width: 2px; background: #e84a83; box-shadow: 0 0 8px rgba(232,74,131,.6); }
+.timeline-recordings { position: absolute; right: 0; bottom: 3px; left: 0; display: flex; gap: 2px; height: 47px; align-items: stretch; overflow-x: auto; }
+.dashboard-recording-segment { position: relative; display: block; flex: 1 0 var(--recording-width); min-width: 8px; height: 100%; border-radius: 2px; background: linear-gradient(90deg, #0871ad, #21a4f4 48%, #0b79b9); }
+.dashboard-recording-segment:hover { background: linear-gradient(90deg, #58c8ff, #b8e7ff); box-shadow: inset 0 0 0 1px #d4f2ff; }
+.dashboard-recording-segment span { position: absolute; top: -18px; left: 0; color: #909090; font-size: 10px; white-space: nowrap; }
+.timeline-open-playback { padding: 7px 10px; color: #b9e1ff; border-radius: 8px; font-size: 12px; text-decoration: none; }.timeline-open-playback:hover { color: #fff; background: #323232; }
+.timeline-no-recording { display: grid; width: 100%; place-items: center; color: #777; font-size: 12px; }.timeline-local-note { margin: 7px 0 0; color: #8d8d8d; font-size: 11px; }
 .page-card { max-width: 1120px; margin: 16px auto; padding: 26px; color: #ececec; border: 1px solid #303030; border-radius: 20px; background: #1d1d1d; }
 .page-card h2 { margin: 0 0 8px; font-size: 23px; letter-spacing: -.4px; }
 .page-card p { color: #a6a6a6; }

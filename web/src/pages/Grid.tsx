@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { api, Camera } from '../api';
+import { api, Camera, RecordingSegment } from '../api';
 import HlsPlayer from '../HlsPlayer';
 import Icon from '../Icon';
 
@@ -86,31 +86,76 @@ function CameraTile({ camera }: { camera: Camera }) {
       </header>
       <div className="camera-video">
         <HlsPlayer src={`/live/${camera.id}/index.m3u8`} live controls={false} />
-        {offline && <div className="stream-offline"><span><i className={`status-dot ${camera.status}`} />{camera.status === 'connecting' ? 'Đang kết nối…' : 'Camera chưa online'}</span></div>}
+        {offline && <div className="stream-offline"><span><i className={`status-dot ${camera.status}`} />{camera.status === 'connecting' ? 'Live RTSP đang kết nối…' : 'Live RTSP chưa online'}</span></div>}
       </div>
     </article>
   );
 }
 
 function Timeline({ camera }: { camera: Camera }) {
+  const [day, setDay] = useState('');
+  const [segments, setSegments] = useState<RecordingSegment[]>([]);
+
+  useEffect(() => {
+    let cancelled = false;
+    setDay('');
+    setSegments([]);
+    api.recordingDays(camera.id)
+      .then(async (days) => {
+        const latestDay = days[0];
+        if (!latestDay) return;
+        const recording = await api.recordingDay(camera.id, latestDay);
+        if (cancelled) return;
+        setDay(latestDay);
+        setSegments(recording.segments);
+      })
+      .catch(() => {
+        // Dashboard vẫn dùng được khi API recording tạm thời lỗi; chi tiết lỗi nằm ở Playback.
+      });
+    return () => { cancelled = true; };
+  }, [camera.id]);
+
+  const playbackHref = (segment?: RecordingSegment) => {
+    const query = new URLSearchParams();
+    if (day) query.set('day', day);
+    if (segment) query.set('segment', segment.file);
+    const suffix = query.toString();
+    return `/playback/${camera.id}${suffix ? `?${suffix}` : ''}`;
+  };
+
   return (
     <section className="timeline-panel" aria-label="Điều khiển playback">
       <div className="timeline-controls">
-        <div className="timeline-select"><Icon name="video" size={18} /><span>{camera.name}</span></div>
+        <div className="timeline-select"><Icon name="video" size={18} /><span>{camera.name} · local</span></div>
         <div className="playback-actions">
-          <Link to={`/playback/${camera.id}`} className="timeline-button" title="Mở playback"><Icon name="skipBack" size={20} /></Link>
-          <Link to={`/playback/${camera.id}`} className="timeline-button" title="Xem lại"><Icon name="rewind" size={20} /></Link>
-          <Link to={`/playback/${camera.id}`} className="timeline-button" title="Phát playback"><Icon name="play" size={21} /></Link>
-          <Link to={`/playback/${camera.id}`} className="timeline-button" title="Tới đoạn mới hơn"><Icon name="skipForward" size={20} /></Link>
+          <Link to={playbackHref(segments[segments.length - 1])} className="timeline-button" title="Mở Playback từ recording local"><Icon name="play" size={21} /></Link>
+          <Link to={playbackHref()} className="timeline-open-playback">Mở Playback local</Link>
         </div>
-        <div className="zoom-controls"><Icon name="zoomOut" size={19} /><span className="zoom-line"><span /></span><Icon name="zoomIn" size={19} /><b>80%</b></div>
+        <div className="zoom-controls"><b>{day ? `${segments.length} đoạn đã lưu` : 'Đang đọc recording…'}</b></div>
       </div>
-      <div className="timeline-track" aria-hidden="true">
+      <div className="timeline-track">
         <div className="timeline-times"><span>00:00</span><span>06:00</span><span>12:00</span><span>18:00</span><span>24:00</span></div>
         <div className="timeline-ruler" />
-        <div className="timeline-recordings"><i /><i /><i /><i /><i /></div>
-        <span className="timeline-marker" />
+        <div className="timeline-recordings">
+          {segments.map((segment, index) => (
+            <Link
+              key={segment.file}
+              to={playbackHref(segment)}
+              className="dashboard-recording-segment"
+              title={`Xem lại local từ ${formatTime(segment)}`}
+              style={{ '--recording-width': `${Math.max(6, 100 / Math.max(segments.length, 1))}%` } as React.CSSProperties}
+            >
+              {index % Math.max(1, Math.ceil(segments.length / 6)) === 0 && <span>{formatTime(segment)}</span>}
+            </Link>
+          ))}
+          {day && segments.length === 0 && <span className="timeline-no-recording">Chưa có segment recording hoàn chỉnh.</span>}
+        </div>
       </div>
+      <p className="timeline-local-note">Các block xanh là file đã lưu trong Documents. Bấm một block để mở đúng mốc Playback; trạng thái Live RTSP phía trên không ảnh hưởng việc xem lại.</p>
     </section>
   );
+}
+
+function formatTime(segment: RecordingSegment): string {
+  return segment.started_at ? segment.started_at.slice(11, 16) : segment.file;
 }
