@@ -176,10 +176,11 @@ export const api = {
     return `${API_BASE}/recordings/${cameraId}/${day}/playlist${query}`;
   },
 
-  async prepareBrowserPlayback(cameraId: number, day: string) {
+  async prepareBrowserPlayback(cameraId: number, day: string, from?: string) {
     const res = await fetch(`${API_BASE}/recordings/${cameraId}/${day}/browser-playback`, {
       method: 'POST',
-      headers: authHeaders(),
+      headers: { 'Content-Type': 'application/json', ...authHeaders() },
+      body: JSON.stringify(from ? { from } : {}),
     });
     return handle<BrowserPlaybackState>(res);
   },

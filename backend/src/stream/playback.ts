@@ -20,22 +20,33 @@ interface PlaybackJob extends BrowserPlaybackState {
 class BrowserPlaybackManager {
   private jobs = new Map<string, PlaybackJob>();
 
-  prepare(cameraId: string, day: string): BrowserPlaybackState {
-    const key = `${cameraId}/${day}`;
-    const outputDir = path.join(config.storageRoot, 'playback', 'prepared', cameraId, day);
+  prepare(cameraId: string, day: string, from?: string): BrowserPlaybackState {
+    const segmentKey = from ? path.parse(from).name : 'full';
+    const key = `${cameraId}/${day}/${segmentKey}`;
+    const outputDir = path.join(config.storageRoot, 'playback', 'prepared', cameraId, day, segmentKey);
     const playlistFile = path.join(outputDir, 'index.m3u8');
-    const playlistUrl = `/playback/prepared/${cameraId}/${day}/index.m3u8`;
+    const playlistUrl = `/playback/prepared/${cameraId}/${day}/${segmentKey}/index.m3u8`;
     const sourceDir = path.join(config.storageRoot, 'rec', cameraId, day);
     if (!fs.existsSync(sourceDir)) {
       return { status: 'error', playlist: null, error: 'Không tìm thấy recording nguồn' };
     }
-    const sourceDuration = playlistDuration(path.join(sourceDir, 'index.m3u8'));
+    const allSegments = fs.readdirSync(sourceDir).filter((file) => file.endsWith('.ts')).sort();
+    const segments = from ? allSegments.filter((file) => file === from) : allSegments;
+    if (from && segments.length === 0) {
+      return { status: 'error', playlist: null, error: 'Segment playback không tồn tại' };
+    }
+    if (segments.length === 0) {
+      return { status: 'error', playlist: null, error: 'Recording chưa có segment nào' };
+    }
+    const sourceDuration = from
+      ? segmentDuration(path.join(sourceDir, 'index.m3u8'), from)
+      : playlistDuration(path.join(sourceDir, 'index.m3u8'));
     const existing = this.jobs.get(key);
     if (existing?.status === 'processing') return this.publicState(existing);
     // Archive tự tạo khi camera đang ghi chỉ có phần video kể từ lúc worker start;
     // chỉ dùng nó khi đã phủ toàn bộ playlist recording của ngày đó.
     const automaticPlaylist = path.join(config.storageRoot, 'playback', cameraId, day, 'index.m3u8');
-    if (playlistCovers(automaticPlaylist, sourceDuration)) {
+    if (!from && playlistCovers(automaticPlaylist, sourceDuration)) {
       const state: PlaybackJob = { status: 'ready', playlist: `/playback/${cameraId}/${day}/index.m3u8`, error: null };
       this.jobs.set(key, state);
       return this.publicState(state);
@@ -44,11 +55,6 @@ class BrowserPlaybackManager {
       const state: PlaybackJob = { status: 'ready', playlist: playlistUrl, error: null };
       this.jobs.set(key, state);
       return this.publicState(state);
-    }
-
-    const segments = fs.readdirSync(sourceDir).filter((file) => file.endsWith('.ts')).sort();
-    if (segments.length === 0) {
-      return { status: 'error', playlist: null, error: 'Recording chưa có segment nào' };
     }
 
     // Đây là output on-demand tách biệt archive đang ghi, nên không bao giờ ghi
@@ -109,6 +115,20 @@ function playlistDuration(playlist: string): number {
   if (!fs.existsSync(playlist)) return 0;
   return Array.from(fs.readFileSync(playlist, 'utf8').matchAll(/#EXTINF:([0-9.]+)/g))
     .reduce((total, match) => total + Number(match[1]), 0);
+}
+
+function segmentDuration(playlist: string, segment: string): number {
+  if (!fs.existsSync(playlist)) return 0;
+  let pendingDuration = 0;
+  for (const line of fs.readFileSync(playlist, 'utf8').split(/\r?\n/)) {
+    const match = /^#EXTINF:([0-9.]+)/.exec(line);
+    if (match) {
+      pendingDuration = Number(match[1]);
+      continue;
+    }
+    if (pendingDuration && path.basename(line) === segment) return pendingDuration;
+  }
+  return 0;
 }
 
 export const browserPlaybackManager = new BrowserPlaybackManager();

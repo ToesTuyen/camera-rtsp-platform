@@ -48,7 +48,8 @@ router.post('/:cameraId/:day/browser-playback', (req, res) => {
     res.status(400).json({ error: 'Camera hoặc ngày không hợp lệ' });
     return;
   }
-  res.json(browserPlaybackManager.prepare(cameraId, day));
+  const from = typeof req.body?.from === 'string' ? path.basename(req.body.from) : undefined;
+  res.json(browserPlaybackManager.prepare(cameraId, day, from));
 });
 
 /**
