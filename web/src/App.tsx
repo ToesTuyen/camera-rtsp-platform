@@ -19,7 +19,7 @@ function Protected({ children }: { children: React.ReactNode }) {
 }
 
 function Layout({ children }: { children: React.ReactNode }) {
-  const nav = useNavigate();
+  const navigate = useNavigate();
   const [cameras, setCameras] = useState<Camera[]>([]);
 
   useEffect(() => {
@@ -28,58 +28,43 @@ function Layout({ children }: { children: React.ReactNode }) {
 
   function logout() {
     localStorage.removeItem('token');
-    nav('/login');
+    navigate('/login');
   }
+
   return (
-    <div className="app-shell">
-      <div className="app-frame">
-        <header className="app-header">
-          <Link to="/live" className="brand" aria-label="Camera RTSP Platform">
-            <span className="brand-mark"><Icon name="video" size={19} stroke={2.2} /></span>
-            Vigilance
-          </Link>
-          <span className="header-rule" />
-          <nav className="top-nav" aria-label="Điều hướng chính">
-            <NavLink to="/live" end>Live view</NavLink>
-            <NavLink to="/playback">Playback</NavLink>
-            <NavLink to="/cameras">Camera</NavLink>
-            <NavLink to="/events">Sự kiện AI</NavLink>
-          </nav>
-          <button className="account-menu" onClick={logout} title="Đăng xuất">
-            <span className="account-avatar"><Icon name="user" size={18} /></span>
-            <span>Admin</span>
-            <Icon name="chevronDown" size={16} />
-          </button>
-        </header>
-        <div className="app-body">
-          <aside className="camera-sidebar">
-            <div className="sidebar-heading">
-              <span>Network Video Recorder</span>
-              <button className="round-icon-button" title="Tìm camera"><Icon name="search" size={20} /></button>
-            </div>
-            <div className="camera-tree">
-              <details className="tree-section" open>
-                <summary className="tree-summary"><Icon name="monitor" size={20} />Live view <Icon name="chevronDown" size={17} className="tree-chevron" /></summary>
-                <div className="tree-items">
-                  {cameras.map((camera) => (
-                    <Link key={camera.id} to={`/live?camera=${camera.id}`} className="tree-camera" title={`Mở ${camera.name} trong Live view`}>
-                      <span className={`status-dot ${camera.status}`} />
-                      <Icon name="video" size={18} />
-                      <span>{camera.name}</span>
-                    </Link>
-                  ))}
-                  {cameras.length === 0 && <p className="sidebar-empty">Chưa có camera. Thêm camera trong mục <b>Camera</b> để bắt đầu xem live.</p>}
-                </div>
-              </details>
-              <details className="tree-section">
-                <summary className="tree-summary"><Icon name="folder" size={20} />Máy chủ <Icon name="chevronDown" size={17} className="tree-chevron" /></summary>
-                <div className="tree-items"><Link to="/cameras" className="tree-camera"><Icon name="monitor" size={18} /><span>Camera RTSP Server</span></Link></div>
-              </details>
-            </div>
-          </aside>
-          <main className="app-content">{children}</main>
+    <div className="mi-app-shell">
+      <aside className="mi-sidebar">
+        <Link to="/live" className="mi-brand" aria-label="MiHome Camera">
+          <span className="mi-brand-mark"><Icon name="camera" size={20} stroke={2.1} /></span>
+          <span>MiHome</span>
+        </Link>
+
+        <nav className="mi-nav" aria-label="Điều hướng chính">
+          <NavLink to="/live" end><Icon name="monitor" size={19} /><span>Camera</span></NavLink>
+          <NavLink to="/playback"><Icon name="clock" size={19} /><span>Playback</span></NavLink>
+          <NavLink to="/events"><Icon name="search" size={19} /><span>Hoạt động</span></NavLink>
+          <NavLink to="/cameras"><Icon name="settings" size={19} /><span>Thiết bị</span></NavLink>
+        </nav>
+
+        <div className="mi-sidebar-divider" />
+        <div className="mi-device-heading"><span>CAMERA CỦA BẠN</span><Link to="/cameras" title="Thêm camera">+</Link></div>
+        <div className="mi-device-list">
+          {cameras.map((camera) => (
+            <Link key={camera.id} to={`/live?camera=${camera.id}`} title={`Mở ${camera.name}`}>
+              <i className={`status-dot ${camera.status}`} />
+              <span>{camera.name}</span>
+            </Link>
+          ))}
+          {cameras.length === 0 && <span className="mi-empty-devices">Chưa có camera</span>}
         </div>
-      </div>
+
+        <button className="mi-account" type="button" onClick={logout} title="Đăng xuất">
+          <span className="mi-account-avatar">T</span>
+          <span><b>Tuyen</b><small>Quản trị viên</small></span>
+          <Icon name="chevronDown" size={16} />
+        </button>
+      </aside>
+      <main className="mi-main">{children}</main>
     </div>
   );
 }

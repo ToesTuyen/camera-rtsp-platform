@@ -139,7 +139,7 @@ export default function Cameras() {
   return (
     <section className="page-card cameras-page">
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <h2>Cameras</h2>
+        <div><span className="eyebrow">Thiết bị trong nhà</span><h2>Camera</h2></div>
         <button onClick={openAdd} style={primaryBtn}>+ Thêm camera</button>
       </div>
       {err && <p style={{ color: 'crimson' }}>{err}</p>}
@@ -287,13 +287,13 @@ function StatusBadge({ status }: { status: string }) {
 
 const th: React.CSSProperties = { padding: 8 };
 const td: React.CSSProperties = { padding: 8 };
-const link: React.CSSProperties = { marginRight: 10, color: '#2563eb' };
+const link: React.CSSProperties = { marginRight: 10, color: '#c52b14', fontWeight: 650 };
 const input: React.CSSProperties = { width: '100%', padding: 8, marginTop: 4, marginBottom: 8, boxSizing: 'border-box' };
-const primaryBtn: React.CSSProperties = { padding: '8px 14px', background: '#2563eb', color: '#fff', border: 'none', borderRadius: 6, cursor: 'pointer', marginLeft: 8 };
-const smallBtn: React.CSSProperties = { padding: '4px 10px', marginRight: 6, border: '1px solid #ccc', borderRadius: 6, cursor: 'pointer', background: '#fff' };
-const dangerBtn: React.CSSProperties = { ...smallBtn, color: '#dc2626', borderColor: '#dc2626' };
-const overlay: React.CSSProperties = { position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center' };
-const modal: React.CSSProperties = { background: '#fff', color: '#111827', padding: 24, borderRadius: 10, width: 420, maxWidth: '90%' };
+const primaryBtn: React.CSSProperties = { padding: '9px 14px', background: '#171716', color: '#fff', border: 'none', borderRadius: 8, cursor: 'pointer', marginLeft: 8, fontWeight: 700 };
+const smallBtn: React.CSSProperties = { padding: '5px 10px', marginRight: 6, border: '1px solid #c9c7bf', borderRadius: 7, cursor: 'pointer', background: '#fffef9', color: '#383732' };
+const dangerBtn: React.CSSProperties = { ...smallBtn, color: '#c52b14', borderColor: '#dc3519' };
+const overlay: React.CSSProperties = { position: 'fixed', zIndex: 20, inset: 0, background: 'rgba(23,23,22,0.52)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 };
+const modal: React.CSSProperties = { maxHeight: '90vh', overflowY: 'auto', background: '#f5f4ef', color: '#252420', padding: 24, borderRadius: 14, width: 480, maxWidth: '100%', boxShadow: '0 24px 50px rgba(0,0,0,.28)' };
 
 function addRtspCredentials(uri: string, username: string, password: string): string {
   const url = new URL(uri);

@@ -21,7 +21,7 @@ export default function Events() {
 
   return (
     <section className="page-card events-page">
-      <h2>Sự kiện AI</h2>
+      <span className="eyebrow">An ninh thông minh</span><h2>Sự kiện AI</h2>
       <div style={{ display: 'flex', gap: 10, alignItems: 'center', marginBottom: 16 }}>
         <label>Camera: <select value={cameraId} onChange={(event) => setCameraId(event.target.value)}>
           <option value="">Tất cả</option>
@@ -48,4 +48,4 @@ export default function Events() {
   );
 }
 
-const button: React.CSSProperties = { padding: '5px 10px', border: '1px solid #2563eb', color: '#2563eb', background: '#fff', borderRadius: 6, cursor: 'pointer' };
+const button: React.CSSProperties = { padding: '7px 11px', border: '0', color: '#fff', background: '#171716', borderRadius: 7, cursor: 'pointer', fontWeight: 700 };
