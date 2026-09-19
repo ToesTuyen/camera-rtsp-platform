@@ -67,6 +67,7 @@ router.get('/:cameraId/:day', (req, res) => {
     return;
   }
   const files = fs.readdirSync(dayDir);
+  const durations = segmentDurations(dayDir);
   const segments = files
     .filter((f) => f.endsWith('.ts'))
     .sort()
@@ -78,7 +79,7 @@ router.get('/:cameraId/:day', (req, res) => {
         size: st.size,
         mtime: st.mtime,
         started_at: startedAtFromFilename(f),
-        duration_s: config.recordSegmentSeconds,
+        duration_s: durations.get(f) ?? config.recordSegmentSeconds,
       };
     });
   const hasPlaylist = files.includes('index.m3u8');
@@ -105,18 +106,23 @@ router.get('/:cameraId/:day/playlist', (req, res) => {
     return;
   }
   const segments = fs.readdirSync(dayDir).filter((file) => file.endsWith('.ts')).sort();
+  const durations = segmentDurations(dayDir);
   const startIndex = from ? segments.indexOf(from) : 0;
   if (from && startIndex < 0) {
     res.status(400).json({ error: 'Segment bắt đầu không hợp lệ' });
     return;
   }
   const selected = segments.slice(Math.max(0, startIndex));
+  const targetDuration = selected.reduce(
+    (max, file) => Math.max(max, durations.get(file) ?? config.recordSegmentSeconds),
+    1
+  );
   const playlist = [
     '#EXTM3U',
     '#EXT-X-VERSION:3',
-    `#EXT-X-TARGETDURATION:${Math.max(1, Math.ceil(config.recordSegmentSeconds))}`,
+    `#EXT-X-TARGETDURATION:${Math.ceil(targetDuration)}`,
     ...selected.flatMap((file) => [
-      `#EXTINF:${config.recordSegmentSeconds.toFixed(3)},`,
+      `#EXTINF:${(durations.get(file) ?? config.recordSegmentSeconds).toFixed(3)},`,
       `/rec/${cameraId}/${day}/${encodeURIComponent(file)}`,
     ]),
     '#EXT-X-ENDLIST',
@@ -138,6 +144,25 @@ function startedAtFromFilename(file: string): string | null {
   if (!match) return null;
   const [, day, time] = match;
   return `${day.slice(0, 4)}-${day.slice(4, 6)}-${day.slice(6, 8)}T${time.slice(0, 2)}:${time.slice(2, 4)}:${time.slice(4, 6)}`;
+}
+
+function segmentDurations(dayDir: string): Map<string, number> {
+  const playlist = path.join(dayDir, 'index.m3u8');
+  const durations = new Map<string, number>();
+  if (!fs.existsSync(playlist)) return durations;
+  let pendingDuration: number | null = null;
+  for (const line of fs.readFileSync(playlist, 'utf8').split(/\r?\n/)) {
+    const match = /^#EXTINF:([0-9.]+)/.exec(line);
+    if (match) {
+      pendingDuration = Number(match[1]);
+      continue;
+    }
+    if (pendingDuration !== null && line && !line.startsWith('#')) {
+      durations.set(path.basename(line), pendingDuration);
+      pendingDuration = null;
+    }
+  }
+  return durations;
 }
 
 export default router;

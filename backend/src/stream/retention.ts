@@ -130,6 +130,8 @@ function recordingDays(): RecordingDay[] {
       }
       const browserPlaybackDir = path.join(config.storageRoot, 'playback', cameraId, day);
       if (fs.existsSync(browserPlaybackDir)) bytes += directoryBytes(browserPlaybackDir);
+      const preparedPlaybackDir = path.join(config.storageRoot, 'playback', 'prepared', cameraId, day);
+      if (fs.existsSync(preparedPlaybackDir)) bytes += directoryBytes(preparedPlaybackDir);
       results.push({ path: dayDir, day, bytes, newestMtimeMs });
     }
   }
@@ -142,6 +144,7 @@ function removeDay(day: RecordingDay, reason: string): void {
   // Bản H.264 phục vụ browser playback là dẫn xuất của recording gốc, nên dọn
   // cùng ngày để quota thực sự được giải phóng và không để orphan files.
   fs.rmSync(path.join(config.storageRoot, 'playback', cameraId, day.day), { recursive: true, force: true });
+  fs.rmSync(path.join(config.storageRoot, 'playback', 'prepared', cameraId, day.day), { recursive: true, force: true });
   console.log(`[retention] removed ${day.path} (${formatBytes(day.bytes)}, ${reason})`);
 }
 

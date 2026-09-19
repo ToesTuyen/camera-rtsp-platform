@@ -22,16 +22,25 @@ class BrowserPlaybackManager {
 
   prepare(cameraId: string, day: string): BrowserPlaybackState {
     const key = `${cameraId}/${day}`;
-    const outputDir = path.join(config.storageRoot, 'playback', cameraId, day);
+    const outputDir = path.join(config.storageRoot, 'playback', 'prepared', cameraId, day);
     const playlistFile = path.join(outputDir, 'index.m3u8');
-    const playlistUrl = `/playback/${cameraId}/${day}/index.m3u8`;
+    const playlistUrl = `/playback/prepared/${cameraId}/${day}/index.m3u8`;
     const sourceDir = path.join(config.storageRoot, 'rec', cameraId, day);
     if (!fs.existsSync(sourceDir)) {
       return { status: 'error', playlist: null, error: 'Không tìm thấy recording nguồn' };
     }
+    const sourceDuration = playlistDuration(path.join(sourceDir, 'index.m3u8'));
     const existing = this.jobs.get(key);
     if (existing?.status === 'processing') return this.publicState(existing);
-    if (fs.existsSync(playlistFile)) {
+    // Archive tự tạo khi camera đang ghi chỉ có phần video kể từ lúc worker start;
+    // chỉ dùng nó khi đã phủ toàn bộ playlist recording của ngày đó.
+    const automaticPlaylist = path.join(config.storageRoot, 'playback', cameraId, day, 'index.m3u8');
+    if (playlistCovers(automaticPlaylist, sourceDuration)) {
+      const state: PlaybackJob = { status: 'ready', playlist: `/playback/${cameraId}/${day}/index.m3u8`, error: null };
+      this.jobs.set(key, state);
+      return this.publicState(state);
+    }
+    if (playlistCovers(playlistFile, sourceDuration)) {
       const state: PlaybackJob = { status: 'ready', playlist: playlistUrl, error: null };
       this.jobs.set(key, state);
       return this.publicState(state);
@@ -42,6 +51,9 @@ class BrowserPlaybackManager {
       return { status: 'error', playlist: null, error: 'Recording chưa có segment nào' };
     }
 
+    // Đây là output on-demand tách biệt archive đang ghi, nên không bao giờ ghi
+    // đè playlist H.264 của worker FFmpeg hiện hành.
+    fs.rmSync(outputDir, { recursive: true, force: true });
     fs.mkdirSync(outputDir, { recursive: true });
     const concatFile = path.join(outputDir, '.concat.txt');
     fs.writeFileSync(concatFile, segments.map((file) => `file '${path.join(sourceDir, file).replace(/'/g, "'\\''")}'`).join('\n') + '\n');
@@ -66,7 +78,7 @@ class BrowserPlaybackManager {
     proc.on('exit', (code) => {
       try { fs.unlinkSync(concatFile); } catch { /* ignore */ }
       job.process = undefined;
-      if (code === 0 && fs.existsSync(playlistFile)) {
+      if (code === 0 && playlistCovers(playlistFile, sourceDuration)) {
         job.status = 'ready';
         job.playlist = playlistUrl;
         job.error = null;
@@ -84,6 +96,19 @@ class BrowserPlaybackManager {
   private publicState(job: PlaybackJob): BrowserPlaybackState {
     return { status: job.status, playlist: job.playlist, error: job.error };
   }
+}
+
+function playlistCovers(playlist: string, sourceDuration: number): boolean {
+  if (!fs.existsSync(playlist)) return false;
+  // Không có duration nguồn (playlist lỗi/cũ) thì output hoàn chỉnh vẫn dùng được.
+  if (sourceDuration <= 0) return fs.readFileSync(playlist, 'utf8').includes('#EXT-X-ENDLIST');
+  return playlistDuration(playlist) >= sourceDuration * 0.98;
+}
+
+function playlistDuration(playlist: string): number {
+  if (!fs.existsSync(playlist)) return 0;
+  return Array.from(fs.readFileSync(playlist, 'utf8').matchAll(/#EXTINF:([0-9.]+)/g))
+    .reduce((total, match) => total + Number(match[1]), 0);
 }
 
 export const browserPlaybackManager = new BrowserPlaybackManager();
